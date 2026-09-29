@@ -20,6 +20,12 @@ Dev-only URL params: `?wave=3` jumps to a wave, `?speed=4` fast-forwards time.
 - Stars come from the share of guests seated perfectly and the skandal level. The titles are Zhaman / Zhaksy / Uly toishy. A full skandal bar ends the toi.
 - Shashu between waves: tap falling sweets (score) and coins (tenge, the game token).
 
+## Music
+- Hall waves: generated dombra chiptune that speeds up at 20s and 10s left.
+- Menus (start, leaderboard, profile, final) and Shashu: `public/music/bipyl.mp3`, "Bipyl" (Jamal Omarova, rap remix v2), re-encoded to 128 kbps.
+  It plays continuously across menus, and Shashu jumps to 0:43, the song's loud section.
+  This is a third-party recording: clear the rights before any public release, or swap the file.
+
 ## Solana (optional)
 - Wallet connect uses the injected Phantom / Solflare providers. On mobile without the extension, it deep-links into the wallet's in-app browser.
 - A 3-star wave saves a **Toi Estelygi** snapshot (PNG of the seated table + title + date). **MINT NFT** asks the wallet to sign the image hash, then POSTs `{owner, message, signature, image, metadata}` to `VITE_MINT_API`.

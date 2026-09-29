@@ -7,7 +7,13 @@ let sfxBus: GainNode;
 let noise: AudioBuffer;
 let muted = false;
 
-export type Track = 'menu' | 'game' | 'shashu' | 'none';
+// Recorded song ("Bipyl", rap remix) for menus and Shashu; the chiptune stays in the hall
+// because its tempo follows the wave timer.
+let song: HTMLAudioElement | null = null;
+let songGain: GainNode | null = null;
+let songPause: number | undefined;
+
+export type Track = 'menu' | 'game' | 'song' | 'none';
 let track: Track = 'none';
 let bpm = 120;
 let step = 0;
@@ -31,7 +37,11 @@ export function unlockAudio() {
     noise = ac.createBuffer(1, ac.sampleRate * 0.3, ac.sampleRate);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    if (track !== 'none') startScheduler();
+    songGain = ac.createGain();
+    songGain.gain.value = 0;
+    songGain.connect(master);
+    if (track === 'song') startSong();
+    else if (track !== 'none') startScheduler();
   }
   if (ac.state === 'suspended') ac.resume();
 }
@@ -98,17 +108,12 @@ const PHRASES = [
   [7, 5, 7, 8, 7, 5, 4, 5, 4, 2, 4, 5, 4, 2, 0, -1],
   [0, -1, 2, 0, 3, 2, 0, -1, 4, 3, 2, 1, 0, -1, 0, -1],
 ];
-const SHASHU = [
-  [7, 9, 7, 5, 7, 9, 10, 9, 7, 5, 4, 5, 7, -1, 7, -1],
-  [4, 5, 7, 5, 4, 2, 4, 5, 4, 2, 0, 2, 0, -1, 0, -1],
-];
 
 function playStep(s: number, t: number) {
   const i = s % 16;
   const bar = Math.floor(s / 16);
   const dur = Math.min(0.3, (60 / bpm) * 0.9);
-  const phrases = track === 'shashu' ? SHASHU : PHRASES;
-  const ph = phrases[bar % phrases.length];
+  const ph = PHRASES[bar % PHRASES.length];
   const n = ph[i];
   if (track !== 'menu' || bar % 8 >= 2) {
     if (n >= 0) pluck(note(n), t, dur, i % 4 === 0 ? 0.16 : 0.11, 'square', musicBus);
@@ -134,11 +139,40 @@ function startScheduler() {
   if (timer === undefined) timer = window.setInterval(tick, 25);
 }
 
-export function playMusic(t: Track) {
-  if (t === track) return;
+function startSong(from?: number) {
+  if (!ac || !songGain) return;
+  if (!song) {
+    song = new Audio(import.meta.env.BASE_URL + 'music/bipyl.mp3');
+    song.loop = true;
+    song.preload = 'auto';
+    ac.createMediaElementSource(song).connect(songGain);
+  }
+  clearTimeout(songPause);
+  if (from !== undefined) song.currentTime = from;
+  songGain.gain.setTargetAtTime(0.85, ac.currentTime, 0.08);
+  song.play().catch(() => {});
+}
+
+function stopSong() {
+  if (!ac || !songGain || !song) return;
+  songGain.gain.setTargetAtTime(0, ac.currentTime, 0.1);
+  clearTimeout(songPause);
+  songPause = window.setTimeout(() => song?.pause(), 500);
+}
+
+/** `from` (seconds) seeks the song; without it the song keeps playing across menu screens. */
+export function playMusic(t: Track, from?: number) {
+  if (t === track && from === undefined) return;
   track = t;
+  if (t === 'song') {
+    clearInterval(timer);
+    timer = undefined;
+    startSong(from);
+    return;
+  }
+  stopSong();
   step = 0;
-  bpm = t === 'menu' ? 112 : t === 'shashu' ? 190 : 140;
+  bpm = t === 'menu' ? 112 : 140;
   if (t === 'none') {
     clearInterval(timer);
     timer = undefined;
