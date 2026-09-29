@@ -3,14 +3,21 @@ import { profile, saveProfile, type Memento } from './storage';
 
 type WalletKind = 'phantom' | 'solflare';
 
-interface Provider {
+export interface Provider {
   publicKey: { toString(): string } | null;
   connect(): Promise<unknown>;
   disconnect(): Promise<void>;
   signMessage(msg: Uint8Array, enc?: string): Promise<{ signature: Uint8Array } | Uint8Array>;
+  signTransaction<T>(tx: T): Promise<T>;
+  signAllTransactions?<T>(txs: T[]): Promise<T[]>;
 }
 
-function provider(kind: WalletKind): Provider | null {
+/** The connected wallet's provider, if any. */
+export function activeProvider(): Provider | null {
+  return profile.walletKind && profile.wallet ? provider(profile.walletKind) : null;
+}
+
+export function provider(kind: WalletKind): Provider | null {
   const w = window as any;
   if (kind === 'phantom') return w.phantom?.solana ?? (w.solana?.isPhantom ? w.solana : null);
   return w.solflare?.isSolflare ? w.solflare : null;

@@ -6,6 +6,8 @@ import { SplashScene, StartScene, ShashuScene, ResultScene, FinalScene, BoardSce
 import { profile } from './storage';
 import { restoreWallet } from './solana';
 import { input, run } from './run';
+import { HostScene, GuestbookScene, InviteScene } from './scenes/toi';
+import { readInvite } from './toi/link';
 
 const cv = document.getElementById('c') as HTMLCanvasElement;
 setCtx(cv.getContext('2d')!);
@@ -50,17 +52,9 @@ register('final', new FinalScene());
 register('board', new BoardScene());
 register('profile', new ProfileScene());
 register('album', new AlbumScene());
-
-setMuted(profile.muted);
-restoreWallet();
-const devWave = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('wave')) : 0;
-if (devWave >= 1 && devWave <= 4) {
-  run.reset();
-  run.halls = [devWave - 1];
-  run.scores = [0];
-  run.stars = [0];
-  go('hall');
-} else go('splash');
+register('host', new HostScene());
+register('guestbook', new GuestbookScene());
+register('invite', new InviteScene());
 
 // Dev only: ?speed=N fast-forwards time; window.__scene exposes the active scene.
 const speed = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('speed')) || 1 : 1;
@@ -79,4 +73,27 @@ function frame(now: number) {
   drawTransition();
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
+
+async function boot() {
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('fakewallet')) {
+    const { installFakeWallet } = await import('./dev/fakeWallet');
+    await installFakeWallet();
+  }
+  setMuted(profile.muted);
+  restoreWallet();
+  const devWave = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('wave')) : 0;
+  if (devWave >= 1 && devWave <= 4) {
+    run.reset();
+    run.halls = [devWave - 1];
+    run.scores = [0];
+    run.stars = [0];
+    go('hall');
+  } else {
+    // An invite link opens straight on the invitation card.
+    const invite = readInvite();
+    if (invite) go('invite', invite);
+    else go('splash');
+  }
+  requestAnimationFrame(frame);
+}
+boot();

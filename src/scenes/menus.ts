@@ -555,10 +555,11 @@ export class ProfileScene extends Scene {
             btn(20, 140, 68, 16, 'PHANTOM', () => this.connect('phantom')),
             btn(92, 140, 68, 16, 'SOLFLARE', () => this.connect('solflare')),
           ]),
+      btn(20, 180, 140, 18, t('myToi'), () => go('host'), true),
       btn(20, 290, 140, 16, t('back'), () => go('start')),
     ];
-    profile.mementos.slice(-3).reverse().forEach((m, i) => {
-      this.buttons.push(btn(130, 210 + i * 20, 34, 14, 'PNG', () => download(m.png, `toi-estelygi-${m.date}.png`)));
+    profile.mementos.slice(-2).reverse().forEach((m, i) => {
+      this.buttons.push(btn(130, 228 + i * 20, 34, 14, 'PNG', () => download(m.png, `toi-estelygi-${m.date}.png`)));
     });
   }
   async connect(kind: 'phantom' | 'solflare') {
@@ -596,17 +597,17 @@ export class ProfileScene extends Scene {
     } else if (isMobile() && !hasWallet()) {
       text(t('noWallet'), 90, 131, C.tan, 1, 'c');
     }
-    if (this.status) text(this.status, 90, 178, C.cream, 1, 'c');
+    if (this.status) text(this.status, 90, 202, C.cream, 1, 'c');
 
-    textS(t('estelygi'), 90, 190, C.gold, 1, 'c');
-    const ms = profile.mementos.slice(-3).reverse();
+    textS(t('estelygi'), 90, 212, C.gold, 1, 'c');
+    const ms = profile.mementos.slice(-2).reverse();
     if (!ms.length) {
       for (const [i, l] of wrap(t('noMementos'), 150).entries()) {
-        text(l, 90, 204 + i * 9, C.tan, 1, 'c');
+        text(l, 90, 224 + i * 9, C.tan, 1, 'c');
       }
     }
     ms.forEach((m, i) => {
-      const y = 214 + i * 20;
+      const y = 232 + i * 20;
       box(14, y - 6, 152, 19, C.gold);
       text(`${m.date} H${m.wave}`, 18, y - 4, C.cream);
       text(m.mint ? t('mintedTag') : m.signature ? t('signedTag') : m.title, 18, y + 4, m.mint ? C.teal : C.gold);

@@ -1,3 +1,5 @@
+import type { ToiInvite } from './toi/link';
+
 // Local profile, persisted in localStorage (reads/writes guarded: private mode can throw).
 
 export interface Memento {
@@ -26,6 +28,7 @@ export interface Profile {
   album: Record<string, number>; // guest kind -> times met
   seenRules: number[]; // rules the azhe has already explained
   daily: { key: string; best: number } | null;
+  hosted: ToiInvite[]; // "My Toi" invites this player created
 }
 
 const KEY = 'toi-bastar-profile';
@@ -37,7 +40,7 @@ function newId() {
 function load(): Profile {
   const base: Profile = {
     id: newId(), name: 'TOISHY', coins: 0, best: 0, stars: 0, games: 0,
-    wallet: null, walletKind: null, mementos: [], muted: false, lang: '', rep: 0, album: {}, seenRules: [], daily: null,
+    wallet: null, walletKind: null, mementos: [], muted: false, lang: '', rep: 0, album: {}, seenRules: [], daily: null, hosted: [],
   };
   try {
     const raw = localStorage.getItem(KEY);

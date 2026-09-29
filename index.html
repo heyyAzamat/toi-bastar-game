@@ -11,14 +11,14 @@
     body { display: flex; align-items: center; justify-content: center; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
     canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
     #modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(59,36,24,.7); }
-    #modal form { background: #7A1E2B; border: 3px solid #E8B64C; padding: 16px; display: flex; gap: 8px; font: 16px monospace; }
-    #modal input { font: 16px monospace; background: #F4E9D3; color: #3B2418; border: 2px solid #3B2418; padding: 6px; width: 11em; text-transform: uppercase; }
+    #modal form { background: #7A1E2B; border: 3px solid #E8B64C; padding: 16px; display: flex; gap: 8px; font: 16px monospace; max-width: 92vw; box-sizing: border-box; }
+    #modal input, #modal textarea { font: 16px monospace; background: #F4E9D3; color: #3B2418; border: 2px solid #3B2418; padding: 6px; width: 14em; max-width: 60vw; text-transform: uppercase; resize: none; }
     #modal button { font: bold 16px monospace; background: #E8B64C; color: #3B2418; border: 2px solid #3B2418; padding: 6px 12px; }
   </style>
 </head>
 <body>
   <canvas id="c" width="180" height="320"></canvas>
-  <div id="modal"><form><input maxlength="12" autocomplete="off" /><button>OK</button></form></div>
+  <div id="modal"><form><button>OK</button></form></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

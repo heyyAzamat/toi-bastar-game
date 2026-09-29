@@ -42,6 +42,16 @@ Dev-only URL params: `?wave=4` jumps straight into a hall (1-4), `?speed=4` fast
   **No mint service ships with this repo.** Without `VITE_MINT_API`, the signed memento is kept locally and the metadata JSON is downloaded.
 - Tenge is tracked off-chain in the local profile. Claiming it as an SPL token needs a server-side mint authority (not included).
 
+## My Toi (social mode, Solana devnet)
+- **Host:** Profile -> MY TOI -> CREATE A TOI. The host enters a name and date. The invite link carries the toi (id, name, date, host name, host wallet) in `?toi=`, so no server is needed. The host can **COPY LINK** or share to **TELEGRAM**.
+- **Guest:** the link opens a pixel invitation card. The guest picks an avatar and a free seat, chooses shashu (0/1/5/10/25 tenge, 1 tenge = 0.001 devnet SOL) and writes a wish (max 140 characters), then signs **one** transaction:
+  `SystemProgram.transfer(guest -> host, shashu)` + `Memo("TOI|id|seat|tenge|avatar|name|wish")`.
+  The wallet only signs; the game sends it to devnet itself, so it works whatever network the wallet is set to.
+- **Guestbook:** read straight from the host wallet's devnet history (`getSignaturesForAddress` filtered by the toi's memo tag). It shows the table with every guest seated, plus wishes, guest short addresses, shashu (from the actual transfer, not the memo) and Explorer links. The first guest to claim a seat keeps it.
+- **Toi Estelygi NFT:** from the toi date on, the host can mint a Metaplex Core asset. The table snapshot + metadata are uploaded to Arweave via Irys devnet (paid in devnet SOL, several wallet prompts). Web3/Metaplex code is lazy-loaded.
+- Guests need a little devnet SOL for the fee: the GET TEST SOL button calls the public faucet, and when that is rate-limited it opens faucet.solana.com.
+- Dev: `?fakewallet=1` installs a Phantom-shaped wallet backed by a local devnet keypair (dev builds only).
+
 ## Leaderboard
 `api/leaderboard.ts` is a Vercel Function (GET top 20 / POST score) on Upstash Redis REST.
 Boards: `all` and `daily-YYYY-MM-DD` (daily boards expire after 8 days). Set `KV_REST_API_URL` + `KV_REST_API_TOKEN`, or `UPSTASH_REDIS_REST_*`, for example by adding Upstash from the Vercel Marketplace.
