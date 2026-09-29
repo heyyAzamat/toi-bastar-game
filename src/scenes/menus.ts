@@ -34,7 +34,7 @@ export class StartScene extends Scene {
   mute!: Btn;
   enter() {
     this.build();
-    playMusic('song');
+    playMusic('bipyl');
   }
   build() {
     this.mute = btn(20, 254, 68, 16, t(profile.muted ? 'soundOff' : 'soundOn'), () => {
@@ -103,7 +103,7 @@ export class ShashuScene extends Scene {
     this.buttons = [btn(30, 236, 120, 18, t('nextToi'), () => { run.wave++; go('hall'); }, true)];
     this.buttons[0].hidden = true;
     // Jump to the song's big section: shashu is the loudest moment of a toi.
-    playMusic('song', 43);
+    playMusic('bipyl', 43);
   }
   update(dt: number) {
     this.t += dt;
@@ -304,7 +304,7 @@ export class FinalScene extends Scene {
       btn(20, 258, 140, 16, t('newToi'), () => { run.reset(); go('hall'); }),
       btn(20, 280, 140, 16, t('menu'), () => go('start')),
     ];
-    playMusic('song');
+    playMusic('bipyl');
     sfx('fanfare');
   }
   update(dt: number) { this.t += dt; }
@@ -339,7 +339,7 @@ export class BoardScene extends Scene {
   enter() {
     this.loading = true;
     this.buttons = [btn(20, 290, 140, 16, t('back'), () => go('start'))];
-    playMusic('song');
+    playMusic('bipyl');
     fetchBoard().then(({ entries, online }) => {
       this.entries = entries;
       this.online = online;
@@ -379,7 +379,7 @@ export class ProfileScene extends Scene {
   enter() {
     this.status = '';
     this.build();
-    playMusic('song');
+    playMusic('bipyl');
   }
   build() {
     const w = !!profile.wallet;

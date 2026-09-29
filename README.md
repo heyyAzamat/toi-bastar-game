@@ -24,10 +24,10 @@ Dev-only URL params: `?wave=3` jumps to a wave, `?speed=4` fast-forwards time.
 - Shashu between waves: tap falling sweets (score) and coins (tenge, the game token).
 
 ## Music
-- Hall waves: generated dombra chiptune that speeds up at 20s and 10s left.
-- Menus (start, leaderboard, profile, final) and Shashu: `public/music/bipyl.mp3`, "Bipyl" (Jamal Omarova, rap remix v2), re-encoded to 128 kbps.
-  It plays continuously across menus, and Shashu jumps to 0:43, the song's loud section.
-  This is a third-party recording: clear the rights before any public release, or swap the file.
+- The toi (hall waves): `public/music/toi.mp3`, Dos-Mukasan "Barinen de sen sulu" (rap remix). It starts from the top each wave and plays at 1.1x with 20s left, 1.2x with 10s left.
+- Menus (start, leaderboard, profile, final) and Shashu: `public/music/bipyl.mp3`, "Bipyl" (Jamal Omarova, rap remix v2). It plays continuously across menus; Shashu jumps to 0:43.
+- Hall intro card and results: the generated dombra chiptune.
+- Both songs are re-encoded to 128 kbps. They are third-party recordings: clear the rights before any public release, or swap the files.
 
 ## Solana (optional)
 - Wallet connect uses the injected Phantom / Solflare providers. On mobile without the extension, it deep-links into the wallet's in-app browser.

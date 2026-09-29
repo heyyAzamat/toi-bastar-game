@@ -94,7 +94,8 @@ export class HallScene extends Scene {
   begin() {
     this.phase = 'play';
     this.syncButtons();
-    playMusic('game');
+    // Each toi starts the song from the top.
+    playMusic('toi', 0);
     setIntensity(0);
     this.showBanner(t('toiBastar'), C.gold);
   }

@@ -7,13 +7,15 @@ let sfxBus: GainNode;
 let noise: AudioBuffer;
 let muted = false;
 
-// Recorded song ("Bipyl", rap remix) for menus and Shashu; the chiptune stays in the hall
-// because its tempo follows the wave timer.
-let song: HTMLAudioElement | null = null;
-let songGain: GainNode | null = null;
-let songPause: number | undefined;
+// Recorded songs: "Bipyl" (rap remix) for menus and Shashu, Dos-Mukasan "Barinen de sen sulu"
+// (rap remix) for the toi itself. The chiptune remains for the hall intro and results.
+const SONGS = { bipyl: 'music/bipyl.mp3', toi: 'music/toi.mp3' } as const;
+type Song = keyof typeof SONGS;
+interface SongPlayer { el: HTMLAudioElement; gain: GainNode; pause?: number }
+const players: Partial<Record<Song, SongPlayer>> = {};
 
-export type Track = 'menu' | 'game' | 'song' | 'none';
+export type Track = 'menu' | 'game' | Song | 'none';
+const isSong = (t: Track): t is Song => t in SONGS;
 let track: Track = 'none';
 let bpm = 120;
 let step = 0;
@@ -37,10 +39,7 @@ export function unlockAudio() {
     noise = ac.createBuffer(1, ac.sampleRate * 0.3, ac.sampleRate);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    songGain = ac.createGain();
-    songGain.gain.value = 0;
-    songGain.connect(master);
-    if (track === 'song') startSong();
+    if (isSong(track)) startSong(track);
     else if (track !== 'none') startScheduler();
   }
   if (ac.state === 'suspended') ac.resume();
@@ -139,38 +138,53 @@ function startScheduler() {
   if (timer === undefined) timer = window.setInterval(tick, 25);
 }
 
-function startSong(from?: number) {
-  if (!ac || !songGain) return;
-  if (!song) {
-    song = new Audio(import.meta.env.BASE_URL + 'music/bipyl.mp3');
-    song.loop = true;
-    song.preload = 'auto';
-    ac.createMediaElementSource(song).connect(songGain);
+function player(name: Song): SongPlayer | null {
+  if (!ac) return null;
+  let p = players[name];
+  if (!p) {
+    const el = new Audio(import.meta.env.BASE_URL + SONGS[name]);
+    el.loop = true;
+    el.preload = 'auto';
+    const gain = ac.createGain();
+    gain.gain.value = 0;
+    gain.connect(master);
+    ac.createMediaElementSource(el).connect(gain);
+    p = players[name] = { el, gain };
   }
-  clearTimeout(songPause);
-  if (from !== undefined) song.currentTime = from;
-  songGain.gain.setTargetAtTime(0.85, ac.currentTime, 0.08);
-  song.play().catch(() => {});
+  return p;
 }
 
-function stopSong() {
-  if (!ac || !songGain || !song) return;
-  songGain.gain.setTargetAtTime(0, ac.currentTime, 0.1);
-  clearTimeout(songPause);
-  songPause = window.setTimeout(() => song?.pause(), 500);
+function startSong(name: Song, from?: number) {
+  const p = player(name);
+  if (!p || !ac) return;
+  clearTimeout(p.pause);
+  if (from !== undefined) p.el.currentTime = from;
+  p.el.playbackRate = 1;
+  p.gain.gain.setTargetAtTime(0.85, ac.currentTime, 0.08);
+  p.el.play().catch(() => {});
 }
 
-/** `from` (seconds) seeks the song; without it the song keeps playing across menu screens. */
+function stopSongs(except?: Song) {
+  if (!ac) return;
+  for (const [name, p] of Object.entries(players) as [Song, SongPlayer][]) {
+    if (name === except || p.el.paused) continue;
+    p.gain.gain.setTargetAtTime(0, ac.currentTime, 0.1);
+    clearTimeout(p.pause);
+    p.pause = window.setTimeout(() => p.el.pause(), 500);
+  }
+}
+
+/** `from` (seconds) seeks a song; without it a song keeps playing across screens. */
 export function playMusic(t: Track, from?: number) {
   if (t === track && from === undefined) return;
   track = t;
-  if (t === 'song') {
+  stopSongs(isSong(t) ? t : undefined);
+  if (isSong(t)) {
     clearInterval(timer);
     timer = undefined;
-    startSong(from);
+    startSong(t, from);
     return;
   }
-  stopSong();
   step = 0;
   bpm = t === 'menu' ? 112 : 140;
   if (t === 'none') {
@@ -179,10 +193,13 @@ export function playMusic(t: Track, from?: number) {
   } else startScheduler();
 }
 
-/** 0 = relaxed, 1 = hurry, 2 = panic. Speeds the dombra up. */
+/** 0 = relaxed, 1 = hurry, 2 = panic. Speeds up the toi song (or the dombra chiptune). */
 export function setIntensity(level: number) {
-  if (track !== 'game') return;
-  bpm = [140, 176, 212][level] ?? 140;
+  if (track === 'toi') {
+    const p = players.toi;
+    const rate = [1, 1.1, 1.2][level] ?? 1;
+    if (p && p.el.playbackRate !== rate) p.el.playbackRate = rate;
+  } else if (track === 'game') bpm = [140, 176, 212][level] ?? 140;
 }
 
 const SFX: Record<string, [number, number, number, OscillatorType][]> = {
