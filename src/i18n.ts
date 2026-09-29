@@ -9,6 +9,7 @@ const D: Record<string, [string, string, string]> = {
   lang: ['ENGLISH', 'РУССКИЙ', 'ҚАЗАҚША'],
   toi: ['TOI', 'ТОЙ', 'ТОЙ'],
   bastar: ['BASTAR!', 'БАСТАР!', 'БАСТАР!'],
+  tapToStart: ['TAP TO START', 'НАЖМИ, ЧТОБЫ НАЧАТЬ', 'БАСТАУ ҮШІН БАС'],
   toiBastar: ['TOI BASTAR!', 'ТОЙ БАСТАР!', 'ТОЙ БАСТАР!'],
   subtitle: ['WEDDING SEATING PUZZLE', 'СВАДЕБНАЯ РАССАДКА', 'ТОЙДА ОТЫРҒЫЗУ ОЙЫНЫ'],
   ranking: ['RANKING', 'РЕЙТИНГ', 'РЕЙТИНГ'],

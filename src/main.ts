@@ -2,7 +2,7 @@ import { setCtx, W, H } from './gfx';
 import { register, go, current } from './ui';
 import { unlockAudio, setMuted } from './audio';
 import { HallScene } from './scenes/hall';
-import { StartScene, ShashuScene, ResultScene, FinalScene, BoardScene, ProfileScene } from './scenes/menus';
+import { SplashScene, StartScene, ShashuScene, ResultScene, FinalScene, BoardScene, ProfileScene } from './scenes/menus';
 import { profile } from './storage';
 import { restoreWallet } from './solana';
 import { input, run } from './run';
@@ -26,8 +26,12 @@ function toGame(e: PointerEvent): [number, number] {
   return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H];
 }
 
+// Browsers only allow sound after a user gesture; iOS counts touchend/click, not pointerdown.
+for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+  document.addEventListener(ev, unlockAudio, { capture: true, passive: true });
+}
+
 cv.addEventListener('pointerdown', (e) => {
-  unlockAudio();
   cv.setPointerCapture(e.pointerId);
   input.liftY = e.pointerType === 'touch' ? 16 : 6;
   current.down(...toGame(e));
@@ -37,6 +41,7 @@ cv.addEventListener('pointerup', (e) => current.up(...toGame(e)));
 cv.addEventListener('pointercancel', (e) => current.up(...toGame(e)));
 cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
+register('splash', new SplashScene());
 register('start', new StartScene());
 register('hall', new HallScene());
 register('shashu', new ShashuScene());
@@ -52,7 +57,7 @@ if (devWave >= 1 && devWave <= 3) {
   run.reset();
   run.wave = devWave - 1;
   go('hall');
-} else go('start');
+} else go('splash');
 
 // Dev only: ?speed=N fast-forwards time; window.__scene exposes the active scene.
 const speed = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('speed')) || 1 : 1;

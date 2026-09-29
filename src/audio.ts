@@ -39,10 +39,14 @@ export function unlockAudio() {
     noise = ac.createBuffer(1, ac.sampleRate * 0.3, ac.sampleRate);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    if (isSong(track)) startSong(track);
-    else if (track !== 'none') startScheduler();
   }
   if (ac.state === 'suspended') ac.resume();
+  // Retry on every gesture: a play() attempted outside a gesture (or on a gesture iOS
+  // doesn't count, like pointerdown) is rejected and would otherwise stay silent.
+  if (isSong(track)) {
+    const p = players[track];
+    if (!p || p.el.paused) startSong(track);
+  } else if (track !== 'none' && timer === undefined) startScheduler();
 }
 
 export function setMuted(m: boolean) {

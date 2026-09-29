@@ -25,9 +25,27 @@ function stars(n: number, cx: number, y: number, scale = 2) {
   for (let i = 0; i < 3; i++) img(i < n ? STAR : STAR_OFF, cx - w * 1.5 + i * w + 2, y, scale);
 }
 
-// --- Start -------------------------------------------------------------------
-
 const DANCERS: Kind[] = ['aksakal', 'kelin', 'kuda', 'child', 'azhe', 'zhigit', 'kudagi'];
+
+// --- Splash: the first tap unlocks sound, so the menu music can start -----------
+
+export class SplashScene extends Scene {
+  t = 0;
+  update(dt: number) { this.t += dt; }
+  onUp() { go('start'); }
+  draw() {
+    frameBg();
+    textO(t('toi'), 90, 70, C.gold, 4, 'c');
+    textO(t('bastar'), 90, 104, C.cream, 3, 'c');
+    DANCERS.forEach((k, i) => {
+      const hop = Math.floor(this.t * 4 + i) % 2;
+      img(guestSprite(k, i), 14 + i * 22, 150 - hop * 2, 1);
+    });
+    if (Math.floor(this.t * 2) % 2 === 0) textO(t('tapToStart'), 90, 210, C.gold, 1, 'c');
+  }
+}
+
+// --- Start -------------------------------------------------------------------
 
 export class StartScene extends Scene {
   t = 0;
