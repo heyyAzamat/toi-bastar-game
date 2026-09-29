@@ -221,8 +221,105 @@ const SFX: Record<string, [number, number, number, OscillatorType][]> = {
   fail: [[392, 0, 0.25, 'triangle'], [370, 0.25, 0.25, 'triangle'], [349, 0.5, 0.25, 'triangle'], [330, 0.75, 0.6, 'triangle']],
 };
 
+/** A synthesized "Oi-bai!": a sawtooth voice through two formant filters gliding o→i, b, a→i. */
+function oibai() {
+  if (!ac) return;
+  const t = ac.currentTime;
+  const src = ac.createOscillator();
+  src.type = 'sawtooth';
+  // An azhe's exclamation: up on "oi", falling on "bai".
+  src.frequency.setValueAtTime(330, t);
+  src.frequency.linearRampToValueAtTime(400, t + 0.12);
+  src.frequency.setValueAtTime(370, t + 0.26);
+  src.frequency.exponentialRampToValueAtTime(230, t + 0.62);
+  const vib = ac.createOscillator();
+  const vibG = ac.createGain();
+  vib.frequency.value = 6;
+  vibG.gain.value = 6;
+  vib.connect(vibG).connect(src.frequency);
+  const out = ac.createGain();
+  out.gain.setValueAtTime(0.0001, t);
+  out.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
+  out.gain.setValueAtTime(0.5, t + 0.18);
+  out.gain.exponentialRampToValueAtTime(0.05, t + 0.22); // the "b" closure
+  out.gain.exponentialRampToValueAtTime(0.55, t + 0.27);
+  out.gain.setValueAtTime(0.5, t + 0.5);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + 0.66);
+  // [time, F1, F2]: o → i, then a → i.
+  const path: [number, number, number][] = [[0, 450, 850], [0.1, 450, 850], [0.2, 300, 2200], [0.27, 780, 1250], [0.42, 780, 1250], [0.62, 320, 2100]];
+  for (const [k, gain] of [[1, 1], [2, 0.6]] as const) {
+    const f = ac.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 7;
+    f.frequency.setValueAtTime(path[0][k], t);
+    for (const [dt, f1, f2] of path.slice(1)) f.frequency.linearRampToValueAtTime(k === 1 ? f1 : f2, t + dt);
+    const g = ac.createGain();
+    g.gain.value = gain * 2.2;
+    src.connect(f).connect(g).connect(out);
+  }
+  out.connect(sfxBus);
+  src.start(t);
+  vib.start(t);
+  src.stop(t + 0.7);
+  vib.stop(t + 0.7);
+}
+
+/** Metallic coin: inharmonic sine partials with fast decays plus a tick. */
+function clink() {
+  if (!ac) return;
+  const t = ac.currentTime;
+  for (const [f, d, v] of [[2093, 0.35, 0.12], [3230, 0.22, 0.08], [4290, 0.18, 0.06], [5580, 0.12, 0.04]]) {
+    const o = ac.createOscillator();
+    o.frequency.value = f;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g).connect(sfxBus);
+    o.start(t);
+    o.stop(t + d + 0.02);
+  }
+  const n = ac.createBufferSource();
+  n.buffer = noise;
+  const hp = ac.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 6000;
+  const ng = ac.createGain();
+  ng.gain.setValueAtTime(0.15, t);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.02);
+  n.connect(hp).connect(ng).connect(sfxBus);
+  n.start(t);
+  n.stop(t + 0.03);
+}
+
+/** A crowd clapping: many short band-passed noise bursts, swelling then thinning out. */
+export function applause(seconds = 2.5) {
+  if (!ac) return;
+  const t0 = ac.currentTime;
+  const claps = Math.round(seconds * 45);
+  for (let i = 0; i < claps; i++) {
+    const p = Math.random();
+    const at = t0 + Math.pow(p, 1.4) * seconds;
+    const n = ac.createBufferSource();
+    n.buffer = noise;
+    const f = ac.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 900 + Math.random() * 1800;
+    f.Q.value = 1.2;
+    const g = ac.createGain();
+    const v = (0.12 + Math.random() * 0.12) * (1 - p * 0.7);
+    g.gain.setValueAtTime(v, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.03 + Math.random() * 0.03);
+    n.connect(f).connect(g).connect(sfxBus);
+    n.start(at, Math.random() * 0.2);
+    n.stop(at + 0.07);
+  }
+}
+
 export function sfx(name: keyof typeof SFX | string) {
   if (!ac) return;
+  if (name === 'oibai') return oibai();
+  if (name === 'coin') return clink();
+  if (name === 'applause') return applause();
   const t = ac.currentTime;
   for (const [f, d, dur, w] of SFX[name] ?? []) pluck(f, t + d, dur, 0.14, w, sfxBus);
 }

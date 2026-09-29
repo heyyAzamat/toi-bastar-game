@@ -1,5 +1,5 @@
 // Scene base class, buttons, router.
-import { C, rect, box, textS, measure, FONT_H } from './gfx';
+import { C, rect, box, textS, measure, FONT_H, band } from './gfx';
 import { sfx } from './audio';
 
 export interface Btn {
@@ -65,9 +65,49 @@ export let current: Scene;
 
 export function register(name: string, s: Scene) { scenes[name] = s; }
 
-export function go(name: string, data?: any) {
+function switchTo(name: string, data?: any) {
   current?.exit();
   current = scenes[name];
   current.pressed = null;
   current.enter(data);
+}
+
+// Scene changes close an ornamental curtain, swap scenes, then open it again.
+const CURTAIN = 0.18;
+const trans = { phase: 0 as 0 | 1 | 2, t: 0, next: null as [string, any] | null };
+
+export function go(name: string, data?: any) {
+  if (!current) return switchTo(name, data);
+  trans.next = [name, data];
+  if (trans.phase === 2) trans.t = CURTAIN - trans.t; // reverse a curtain that is still opening
+  else if (trans.phase === 0) trans.t = 0;
+  trans.phase = 1;
+}
+
+export const transitioning = () => trans.phase !== 0;
+
+export function updateTransition(dt: number) {
+  if (!trans.phase) return;
+  trans.t += dt;
+  if (trans.t < CURTAIN) return;
+  if (trans.phase === 1) {
+    const [name, data] = trans.next!;
+    trans.next = null;
+    switchTo(name, data);
+    trans.phase = 2;
+    trans.t = 0;
+  } else trans.phase = 0;
+}
+
+export function drawTransition() {
+  if (!trans.phase) return;
+  const p = Math.min(1, trans.t / CURTAIN);
+  const cover = trans.phase === 1 ? p : 1 - p;
+  const h = Math.ceil(cover * 162);
+  rect(0, 0, 180, h, C.maroon);
+  rect(0, 320 - h, 180, h, C.maroon);
+  if (h > 5) {
+    band(0, h - 5, 180);
+    band(0, 320 - h, 180);
+  }
 }

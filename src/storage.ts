@@ -22,6 +22,10 @@ export interface Profile {
   mementos: Memento[];
   muted: boolean;
   lang: string;
+  rep: number; // toishy reputation: sum of all toi scores, unlocks halls
+  album: Record<string, number>; // guest kind -> times met
+  seenRules: number[]; // rules the azhe has already explained
+  daily: { key: string; best: number } | null;
 }
 
 const KEY = 'toi-bastar-profile';
@@ -33,11 +37,16 @@ function newId() {
 function load(): Profile {
   const base: Profile = {
     id: newId(), name: 'TOISHY', coins: 0, best: 0, stars: 0, games: 0,
-    wallet: null, walletKind: null, mementos: [], muted: false, lang: '',
+    wallet: null, walletKind: null, mementos: [], muted: false, lang: '', rep: 0, album: {}, seenRules: [], daily: null,
   };
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...base, ...JSON.parse(raw) };
+    if (raw) {
+      const p = { ...base, ...JSON.parse(raw) };
+      // Players from before reputation existed start from their best score.
+      if (!p.rep && p.best) p.rep = p.best;
+      return p;
+    }
   } catch {}
   return base;
 }

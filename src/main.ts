@@ -1,8 +1,8 @@
 import { setCtx, W, H } from './gfx';
-import { register, go, current } from './ui';
+import { register, go, current, transitioning, updateTransition, drawTransition } from './ui';
 import { unlockAudio, setMuted } from './audio';
 import { HallScene } from './scenes/hall';
-import { SplashScene, StartScene, ShashuScene, ResultScene, FinalScene, BoardScene, ProfileScene } from './scenes/menus';
+import { SplashScene, StartScene, ShashuScene, ResultScene, FinalScene, BoardScene, ProfileScene, AlbumScene } from './scenes/menus';
 import { profile } from './storage';
 import { restoreWallet } from './solana';
 import { input, run } from './run';
@@ -34,7 +34,7 @@ for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
 cv.addEventListener('pointerdown', (e) => {
   cv.setPointerCapture(e.pointerId);
   input.liftY = e.pointerType === 'touch' ? 16 : 6;
-  current.down(...toGame(e));
+  if (!transitioning()) current.down(...toGame(e));
 });
 cv.addEventListener('pointermove', (e) => current.move(...toGame(e)));
 cv.addEventListener('pointerup', (e) => current.up(...toGame(e)));
@@ -49,13 +49,16 @@ register('result', new ResultScene());
 register('final', new FinalScene());
 register('board', new BoardScene());
 register('profile', new ProfileScene());
+register('album', new AlbumScene());
 
 setMuted(profile.muted);
 restoreWallet();
 const devWave = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('wave')) : 0;
-if (devWave >= 1 && devWave <= 3) {
+if (devWave >= 1 && devWave <= 4) {
   run.reset();
-  run.wave = devWave - 1;
+  run.halls = [devWave - 1];
+  run.scores = [0];
+  run.stars = [0];
   go('hall');
 } else go('splash');
 
@@ -68,8 +71,12 @@ function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000) * speed;
   last = now;
   // Hidden tab = paused toi: patience and the wave timer stop.
-  if (!document.hidden) current.update(dt);
+  if (!document.hidden) {
+    updateTransition(dt);
+    if (!transitioning()) current.update(dt);
+  }
   current.draw();
+  drawTransition();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

@@ -5,7 +5,8 @@ const PAL: Record<string, string> = {
   k: C.brown, w: C.cream, g: C.gold, r: C.red, m: C.maroon, t: C.teal, s: C.tan, n: C.green,
 };
 
-export type Kind = 'aksakal' | 'azhe' | 'kuda' | 'kudagi' | 'zhigit' | 'kelin' | 'child' | 'akim' | 'asaba';
+export type Kind = 'aksakal' | 'azhe' | 'kuda' | 'kudagi' | 'zhigit' | 'kelin' | 'child' | 'akim' | 'asaba'
+  | 'nagashy' | 'renzhigen' | 'bauyr';
 
 const ADULT = [
   '................',
@@ -71,6 +72,14 @@ const BRAIDS: Overlay = {
 };
 const AKIM: Overlay = { 2: '....kkkkkkkk....', 3: '...kkkkkkkkkk...', 6: '....kwkwwkwk....', 12: '.......rr.......', 13: '.......rr.......' };
 const ASABA: Overlay = { ...HAIR, 9: '............kk..', 10: '............kk..', 11: '............k...' };
+const TAKIYA: Overlay = { 1: '......nnnn......', 2: '.....nwnwnw.....', 3: '...kkkkkkkkkk...' };
+// Angry brows + tight mouth: the offended relative.
+const ANGRY: Overlay = { ...HAIR, 5: '....kkk..kkk....', 8: '....ksskkssk....' };
+// Tymaq (fur hat with ear flaps): the cousin from the aul.
+const TYMAQ: Overlay = {
+  1: '......nnnn......', 2: '....knnnnnnk....', 3: '...kkkkkkkkkk...',
+  4: '...k........k...', 5: '...k........k...', 6: '...k........k...', 7: '...k........k...', 8: '...kk......kk...',
+};
 const BOY: Overlay = { 4: '......gggg......', 5: '....kkkkkkkk....' };
 const GIRL: Overlay = { 4: '.....kkkkkk.....', 5: '....kkkkkkkk....', 6: '..kk........kk..', 7: '..k..........k..' };
 
@@ -108,6 +117,9 @@ export function guestSprite(kind: Kind, variant = 0): HTMLCanvasElement {
     case 'child': s = v ? build(CHILD, GIRL, 'w', 'n') : build(CHILD, BOY, 'n', 'g'); break;
     case 'akim': s = build(ADULT, AKIM, 'k', 'w'); break;
     case 'asaba': s = build(ADULT, ASABA, 'm', 'g'); break;
+    case 'nagashy': s = build(ADULT, TAKIYA, v ? 'n' : 'm', 'g'); break;
+    case 'renzhigen': s = build(ADULT, ANGRY, v ? 'm' : 'n', 'k'); break;
+    case 'bauyr': s = build(ADULT, TYMAQ, 'n', 'w'); break;
   }
   cache.set(key, s!);
   return s!;
@@ -138,4 +150,14 @@ export const BIGCOIN = icon([
 
 const CANDY_ROWS = ['w.......w', 'ww.ooo.ww', 'wwoowooww', 'ww.ooo.ww', 'w.......w'];
 export const CANDIES = [C.red, C.teal, C.green, C.maroon].map((col) => icon(CANDY_ROWS, { ...PAL, o: col }));
+export const ARROW_UP = icon(['..k..', '.kgk.', 'kgggk', '.kgk.', '.kgk.', '.kkk.']);
+export const ARROW_DOWN = icon(['.kkk.', '.knk.', '.knk.', 'knnnk', '.knk.', '..k..']);
+export const ARROW_LEFT = icon(['..k...', '.ktkkk', 'kttttk', '.ktkkk', '..k...']);
+export const ARROW_RIGHT = icon(['...k..', 'kkkrk.', 'krrrrk', 'kkkrk.', '...k..']);
+export const HOUSE = icon(['..k..', '.kgk.', 'kgggk', '.gkg.', '.gkg.']);
+export const STOOL = icon(['kkkkkkkkkkkk', 'kssssssssssk', 'kkkkkkkkkkkk', '.k........k.', '.k........k.', '.k........k.', 'kk........kk']);
+export const SMILE = icon(['kkkkkkk', 'knnnnnk', 'knknknk', 'knnnnnk', 'kknnnkk', 'knkkknk', 'kkkkkkk', '.kk....', 'k......'], { k: C.brown, n: C.green });
+export const TICK = icon(['....n', '...nn', 'n.nn.', 'nnn..', '.n...'], { n: C.green });
+export const CROSS = icon(['r...r', '.r.r.', '..r..', '.r.r.', 'r...r'], { r: C.red });
+export const FAMILY = [C.green, C.gold, C.cream];
 export const WARN = icon(['krk', 'krk', 'krk', 'kkk', 'krk', 'kkk'], { k: C.cream, r: C.red });

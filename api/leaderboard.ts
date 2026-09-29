@@ -3,8 +3,15 @@
 
 const URL_ = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
 const TOKEN = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-const BOARD = 'toi:board';
 const META = 'toi:meta';
+const DAILY_TTL = 8 * 86400; // daily boards expire after a week
+
+/** 'all' (all-time) or 'daily-YYYY-MM-DD'; anything else is rejected. */
+function boardKey(board: unknown): string | null {
+  if (board == null || board === 'all') return 'toi:board';
+  if (typeof board === 'string' && /^daily-\d{4}-\d{2}-\d{2}$/.test(board)) return `toi:${board}`;
+  return null;
+}
 
 async function redis(cmds: (string | number)[][]): Promise<{ result: any }[]> {
   const r = await fetch(`${URL_}/pipeline`, {
@@ -19,9 +26,11 @@ async function redis(cmds: (string | number)[][]): Promise<{ result: any }[]> {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!URL_ || !TOKEN) return json({ error: 'leaderboard not configured' }, 503);
-  const [top] = await redis([['ZREVRANGE', BOARD, 0, 19, 'WITHSCORES']]);
+  const key = boardKey(new URL(req.url).searchParams.get('board'));
+  if (!key) return json({ error: 'bad board' }, 400);
+  const [top] = await redis([['ZREVRANGE', key, 0, 19, 'WITHSCORES']]);
   const flat: string[] = top.result ?? [];
   const ids = flat.filter((_, i) => i % 2 === 0);
   if (!ids.length) return json({ entries: [] });
@@ -43,10 +52,13 @@ export async function POST(req: Request) {
     Number.isInteger(b.score) && b.score >= 0 && b.score <= 20000 &&
     Number.isInteger(b.stars) && b.stars >= 0 && b.stars <= 9 &&
     (b.wallet == null || (typeof b.wallet === 'string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(b.wallet)));
-  if (!ok) return json({ error: 'invalid entry' }, 400);
+  const key = boardKey(b.board);
+  if (!ok || !key) return json({ error: 'invalid entry' }, 400);
   // GT: only raise a player's best, never lower it.
-  const [add] = await redis([['ZADD', BOARD, 'GT', 'CH', b.score, b.id]]);
-  const [cur] = await redis([['ZSCORE', BOARD, b.id]]);
+  const cmds: (string | number)[][] = [['ZADD', key, 'GT', 'CH', b.score, b.id]];
+  if (key !== 'toi:board') cmds.push(['EXPIRE', key, DAILY_TTL]);
+  const [add] = await redis(cmds);
+  const [cur] = await redis([['ZSCORE', key, b.id]]);
   if (add.result || Number(cur.result) === b.score) {
     await redis([['HSET', META, b.id, JSON.stringify({ name: b.name, stars: b.stars, wallet: b.wallet ?? null })]]);
   }

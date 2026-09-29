@@ -17,7 +17,12 @@ function provider(kind: WalletKind): Provider | null {
 }
 
 /** On mobile browsers without the extension, reopen the game inside the wallet's in-app browser. */
-function openInWallet(kind: WalletKind) {
+export const isMobile = () =>
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+
+export const hasWallet = (kind?: WalletKind) => (kind ? !!provider(kind) : !!provider('phantom') || !!provider('solflare'));
+
+export function openInWallet(kind: WalletKind) {
   const url = encodeURIComponent(location.href);
   const ref = encodeURIComponent(location.origin);
   window.location.href = kind === 'phantom'
@@ -30,7 +35,9 @@ export const shortAddr = (a: string) => a.slice(0, 4) + '..' + a.slice(-4);
 export async function connectWallet(kind: WalletKind): Promise<string | null> {
   const p = provider(kind);
   if (!p) {
-    openInWallet(kind);
+    // Mobile: reopen inside the wallet's in-app browser. Desktop: point to the extension.
+    if (isMobile()) openInWallet(kind);
+    else window.open(kind === 'phantom' ? 'https://phantom.app/download' : 'https://solflare.com/download', '_blank', 'noopener');
     return null;
   }
   await p.connect();

@@ -12,16 +12,23 @@ npm run build      # dist/ (static)
 Languages: Kazakh, Russian, English (`src/i18n.ts`). The first launch follows the device language; the start screen has a switch.
 The 5x7 pixel font includes Latin and Cyrillic, with the Kazakh letters Ә Ғ Қ Ң Ө Ұ Ү Һ І.
 
-Dev-only URL params: `?wave=3` jumps to a wave, `?speed=4` fast-forwards time.
+Dev-only URL params: `?wave=4` jumps straight into a hall (1-4), `?speed=4` fast-forwards time.
 
 ## How it plays
-- Guests queue at the bottom (patience 8-12s). Drag them to a cushion; drag seated guests to swap.
-- 75s wave timer; when it ends the asaba (toastmaster) arrives and the table is scored. Seat everyone early for a time bonus.
-- Seat colours encode the rules: blue = kuieu (groom) side, red = kelin (bride) side, gold trim = seats near the tor, green trim = door-end seats for children.
-- Rules: 1 elders near the tor (and no young guest on the tor row), 2 sides, 3 kuda (ring) in gold seats facing their pair, 4 feuding guests (bolt + number) not adjacent, 5 children by the door.
-- Waves: yurt 8 seats (rules 1-2), cafe 16 (1-4), toikhana 24 (1-5, plus a surprise akim who needs the tor row).
-- Stars come from the share of guests seated perfectly and the skandal level. The titles are Zhaman / Zhaksy / Uly toishy. A full skandal bar ends the toi.
-- Shashu between waves: tap falling sweets (score) and coins (tenge, the game token).
+- Tap to start (unlocks sound), then **TOI BASTAR!** plays a toi through every hall your reputation has unlocked, with Shashu between halls. **DAILY TOI** is one fixed challenge per UTC day (same seed and hall for everyone) with its own leaderboard.
+- Guests queue at the bottom. Drag one onto a cushion; drag seated guests to swap. Tap or pick up a guest and every free seat shows a green tick (fine) or red cross (breaks a rule).
+- Portrait badges: side arrow (blue left / red right), up arrow = near the tor, down arrow = by the door, ring = kuda pair, bolt + number = feud, colour dot = nagashy family, house = cousin from the aul.
+- Rules unlock hall by hall, and the azhe explains each new one in a speech bubble the first time:
+  1. Elders near the tor, young guests off the tor row. 2. Sides.
+  3. Kuda face their pair.
+  4. The offended relative arrives after their rival and must not sit next to them.
+  5. Kids by the door; each kid runs off once and must be reseated.
+  6. When every seat is full, a cousin from the aul arrives, a stool appears, and someone must move to it.
+  7. Nagashy next to same-colour family. 8. The surprise akim on the tor row.
+- Halls: yurt (8 seats, 0 rep), cafe (16, 300), toikhana (24, 1000), saray/palace (24, 2200, shorter patience).
+- Feedback: green smile or red "Hm!" bubble over each seated guest; offended guests walk out through the door; the screen shakes when the scandal rises; synthesized "Oibai!" on mistakes, coin clink in Shashu, applause when the asaba arrives and at the end.
+- Meta: reputation (sum of toi scores) unlocks halls; the **Aul album** collects every guest type met.
+- Stars come from the share of guests seated perfectly and the scandal level (Zhaman / Zhaksy / Uly toishy). A full scandal bar ends the toi.
 
 ## Music
 - The toi (hall waves): `public/music/toi.mp3`, Dos-Mukasan "Barinen de sen sulu" (rap remix). It starts from the top each wave and plays at 1.1x with 20s left, 1.2x with 10s left.
@@ -37,5 +44,5 @@ Dev-only URL params: `?wave=3` jumps to a wave, `?speed=4` fast-forwards time.
 
 ## Leaderboard
 `api/leaderboard.ts` is a Vercel Function (GET top 20 / POST score) on Upstash Redis REST.
-Set `KV_REST_API_URL` + `KV_REST_API_TOKEN`, or `UPSTASH_REDIS_REST_*`, for example by adding Upstash from the Vercel Marketplace.
+Boards: `all` and `daily-YYYY-MM-DD` (daily boards expire after 8 days). Set `KV_REST_API_URL` + `KV_REST_API_TOKEN`, or `UPSTASH_REDIS_REST_*`, for example by adding Upstash from the Vercel Marketplace.
 Until then, and in `npm run dev`, the client falls back to a per-device board. Scores are validated for shape and range but not signed, so they can be spoofed.

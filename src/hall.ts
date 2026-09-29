@@ -6,10 +6,10 @@ import { t } from './i18n';
 export interface Seat {
   i: number;
   row: number;
-  side: 'groom' | 'bride';
+  side: 'groom' | 'bride' | 'none';
   x: number;
   y: number;
-  zone: 'honor' | 'child' | 'plain';
+  zone: 'honor' | 'child' | 'plain' | 'stool';
 }
 
 export interface Layout {
@@ -27,9 +27,11 @@ export const HALL_BOTTOM = 252;
 
 export function layout(w: WaveDef): Layout {
   const rows = w.seats / 2;
-  const spacing = Math.min(24, Math.floor(188 / rows));
+  // Halls with a cousin keep space at the door end for the stool.
+  const avail = w.cousin ? 170 : 188;
+  const spacing = Math.min(24, Math.floor(avail / rows));
   const tableH = rows * spacing;
-  const tableTop = 52 + Math.floor((188 - tableH) / 2);
+  const tableTop = 52 + Math.floor((avail - tableH) / 2);
   const seats: Seat[] = [];
   for (let r = 0; r < rows; r++) {
     for (let s = 0; s < 2; s++) {
@@ -43,6 +45,11 @@ export function layout(w: WaveDef): Layout {
     }
   }
   return { rows, spacing, tableTop, tableH, seats };
+}
+
+/** The cousin's stool at the door end of the table: no side, not adjacent to anyone. */
+export function stoolSeat(L: Layout): Seat {
+  return { i: L.seats.length, row: L.rows, side: 'none', x: TABLE_X + TABLE_W / 2 - 8, y: L.tableTop + L.tableH + 1, zone: 'stool' };
 }
 
 function circleRing(cx: number, cy: number, r: number, thick: number, a: string, b: string) {
@@ -88,6 +95,22 @@ function floor(w: WaveDef) {
     rect(44, 46, 92, 196, C.maroon);
     box(44, 46, 92, 196, C.gold);
     box(46, 48, 88, 192, C.gold);
+  } else if (w.hall === 'saray') {
+    // Palace: cream marble, gold inlay, teal-and-gold columns.
+    rect(0, T, 180, Hh, C.cream);
+    for (let y = T; y < HALL_BOTTOM; y += 12) for (let x = (y / 12) % 2 ? 0 : 12; x < 180; x += 24) rect(x, y, 12, 12, C.tan);
+    for (let y = T; y < HALL_BOTTOM; y += 12) rect(0, y, 180, 1, C.gold);
+    rect(40, T, 100, Hh, C.maroon);
+    vband(40, T, Hh, C.gold, C.maroon);
+    vband(135, T, Hh, C.gold, C.maroon);
+    for (const x of [6, 164]) {
+      for (let y = T + 14; y < HALL_BOTTOM - 10; y += 44) {
+        rect(x, y, 10, 20, C.teal);
+        rect(x + 2, y, 2, 20, C.cream);
+        rect(x - 1, y - 2, 12, 3, C.gold);
+        rect(x - 1, y + 19, 12, 3, C.gold);
+      }
+    }
   } else {
     rect(0, T, 180, Hh, C.maroon);
     for (let y = T; y < HALL_BOTTOM; y += 6) for (let x = (y / 6) % 2 ? 0 : 3; x < 180; x += 6) rect(x, y, 1, 1, C.red);
