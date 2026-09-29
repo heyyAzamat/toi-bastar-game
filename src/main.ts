@@ -1,0 +1,70 @@
+import { setCtx, W, H } from './gfx';
+import { register, go, current } from './ui';
+import { unlockAudio, setMuted } from './audio';
+import { HallScene } from './scenes/hall';
+import { StartScene, ShashuScene, ResultScene, FinalScene, BoardScene, ProfileScene } from './scenes/menus';
+import { profile } from './storage';
+import { restoreWallet } from './solana';
+import { input, run } from './run';
+
+const cv = document.getElementById('c') as HTMLCanvasElement;
+setCtx(cv.getContext('2d')!);
+
+// Integer scaling in *device* pixels so every game pixel is an exact square.
+let scale = 1;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.max(1, Math.floor(Math.min((innerWidth * dpr) / W, (innerHeight * dpr) / H)));
+  cv.style.width = `${(W * scale) / dpr}px`;
+  cv.style.height = `${(H * scale) / dpr}px`;
+}
+addEventListener('resize', resize);
+resize();
+
+function toGame(e: PointerEvent): [number, number] {
+  const r = cv.getBoundingClientRect();
+  return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H];
+}
+
+cv.addEventListener('pointerdown', (e) => {
+  unlockAudio();
+  cv.setPointerCapture(e.pointerId);
+  input.liftY = e.pointerType === 'touch' ? 16 : 6;
+  current.down(...toGame(e));
+});
+cv.addEventListener('pointermove', (e) => current.move(...toGame(e)));
+cv.addEventListener('pointerup', (e) => current.up(...toGame(e)));
+cv.addEventListener('pointercancel', (e) => current.up(...toGame(e)));
+cv.addEventListener('contextmenu', (e) => e.preventDefault());
+
+register('start', new StartScene());
+register('hall', new HallScene());
+register('shashu', new ShashuScene());
+register('result', new ResultScene());
+register('final', new FinalScene());
+register('board', new BoardScene());
+register('profile', new ProfileScene());
+
+setMuted(profile.muted);
+restoreWallet();
+const devWave = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('wave')) : 0;
+if (devWave >= 1 && devWave <= 3) {
+  run.reset();
+  run.wave = devWave - 1;
+  go('hall');
+} else go('start');
+
+// Dev only: ?speed=N fast-forwards time; window.__scene exposes the active scene.
+const speed = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('speed')) || 1 : 1;
+if (import.meta.env.DEV) (window as any).__scene = () => current;
+
+let last = performance.now();
+function frame(now: number) {
+  const dt = Math.min(0.05, (now - last) / 1000) * speed;
+  last = now;
+  // Hidden tab = paused toi: patience and the wave timer stop.
+  if (!document.hidden) current.update(dt);
+  current.draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
