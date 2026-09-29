@@ -16,7 +16,7 @@ export function askName(current: string): Promise<string | null> {
     };
     form.onsubmit = (e) => {
       e.preventDefault();
-      const v = input.value.toUpperCase().replace(/[^A-Z0-9 _.-]/g, '').trim().slice(0, 12);
+      const v = input.value.toUpperCase().replace(/[^A-Z0-9А-ЯЁӘҒҚҢӨҰҮҺІ _.-]/g, '').trim().slice(0, 12);
       close(v || null);
     };
     modal.onpointerdown = (e) => { if (e.target === modal) close(null); };

@@ -4,17 +4,14 @@ import { Scene, btn, go, type Btn } from '../ui';
 import { sfx, playMusic, setIntensity } from '../audio';
 import { RING, BOLT, WARN, guestSprite } from '../sprites';
 import {
-  WAVES, WAVE_TIME, RULE_TEXT, KIND_LABEL, makeGuests, isElder, isKuda, isHonored,
+  WAVES, WAVE_TIME, makeGuests, isElder, isKuda, isHonored,
   type Guest, type WaveDef,
 } from '../waves';
 import { layout, renderBackground, type Layout } from '../hall';
-import { run, TITLES, input } from '../run';
+import { run, title as titleFor, input } from '../run';
+import { t, nm } from '../i18n';
 
-const REASON: Record<string, string> = {
-  side: 'WRONG SIDE!', elder: 'ELDER TOO FAR FROM TOR!', tor: 'TOR ROW IS FOR ELDERS!',
-  kuda: 'KUDA NEED A GOLD SEAT!', face: 'KUDA MUST FACE EACH OTHER!', feud: 'FEUD! THEY ARE FIGHTING!',
-  child: 'CHILDREN SIT BY THE DOOR!', akim: 'AKIM BELONGS ON THE TOR!',
-};
+const reason = (v: string) => t('r_' + v);
 
 const Q_Y = 259;
 const qSlotX = (i: number) => 6 + i * 40;
@@ -80,8 +77,8 @@ export class HallScene extends Scene {
     this.shot = null;
     this.pairBonus.clear();
     this.phase = 'intro';
-    this.startBtn = btn(30, 232, 120, 18, 'TOI BASTAR!', () => this.begin(), true);
-    this.closeBtn = btn(40, 232, 100, 18, 'ZHARAIDY', () => { this.phase = 'play'; this.syncButtons(); }, true);
+    this.startBtn = btn(30, 232, 120, 18, t('toiBastar'), () => this.begin(), true);
+    this.closeBtn = btn(40, 232, 100, 18, t('ok'), () => { this.phase = 'play'; this.syncButtons(); }, true);
     this.rulesBtn = btn(161, 15, 15, 14, '?', () => { this.phase = 'rules'; this.drag = null; this.syncButtons(); });
     this.buttons = [this.startBtn, this.closeBtn, this.rulesBtn];
     this.syncButtons();
@@ -99,7 +96,7 @@ export class HallScene extends Scene {
     this.syncButtons();
     playMusic('game');
     setIntensity(0);
-    this.showBanner('TOI BASTAR!', C.gold);
+    this.showBanner(t('toiBastar'), C.gold);
   }
 
   byId(id: number) { return this.guests[id]; }
@@ -175,15 +172,15 @@ export class HallScene extends Scene {
       const gain = 10 + Math.round((10 * g.patience) / g.maxP);
       this.kurmet += gain;
       g.rewarded = true;
-      this.float('ZHARAYSYN!', cx, s.y - 6, C.gold);
+      this.float(t('zharaysyn'), cx, s.y - 6, C.gold);
       this.float('+' + gain, cx, s.y + 2, C.cream);
       this.burst(cx, s.y + 8);
       sfx('good');
       this.kudaBonus(g);
     } else {
       this.scandal += 10 * g.viol.length;
-      this.float('OIBAI!', cx, s.y - 6, C.red);
-      this.float(REASON[g.viol[0]], 90, s.y + 4, C.cream);
+      this.float(t('oibai'), cx, s.y - 6, C.red);
+      this.float(reason(g.viol[0]), 90, s.y + 4, C.cream);
       this.shake = 0.25;
       sfx('bad');
     }
@@ -194,7 +191,7 @@ export class HallScene extends Scene {
     if (!p || this.pairBonus.has(g.pair) || p.state !== 'seated' || g.viol.length || p.viol.length) return;
     this.pairBonus.add(g.pair);
     this.kurmet += 10;
-    this.float('KUDALAR! +10', 90, this.L.seats[g.seat].y - 12, C.gold);
+    this.float(t('kudalar'), 90, this.L.seats[g.seat].y - 12, C.gold);
     this.burst(90, this.L.seats[g.seat].y + 8, 16);
   }
 
@@ -229,11 +226,11 @@ export class HallScene extends Scene {
     }
     const s = this.L.seats[to];
     if (worse) {
-      this.float('OIBAI!', s.x + 8, s.y - 6, C.red);
-      this.float(REASON[g.viol[0] ?? other?.viol[0] ?? 'side'], 90, s.y + 4, C.cream);
+      this.float(t('oibai'), s.x + 8, s.y - 6, C.red);
+      this.float(reason(g.viol[0] ?? other?.viol[0] ?? 'side'), 90, s.y + 4, C.cream);
       sfx('bad');
     } else if (better) {
-      this.float('ZHARAYSYN!', s.x + 8, s.y - 6, C.gold);
+      this.float(t('zharaysyn'), s.x + 8, s.y - 6, C.gold);
       sfx('good');
     } else sfx('pick');
   }
@@ -243,7 +240,7 @@ export class HallScene extends Scene {
     this.queue.splice(qi, 1);
     g.state = 'left';
     this.scandal += 15;
-    this.float('RENJIDI!', (this.qx.get(g.id) ?? qSlotX(qi)) + 16, Q_Y - 4, C.red);
+    this.float(t('offended'), (this.qx.get(g.id) ?? qSlotX(qi)) + 16, Q_Y - 4, C.red);
     sfx('leave');
     if (this.drag?.g === g) this.drag = null;
     if (this.selected === g) this.selected = null;
@@ -282,7 +279,7 @@ export class HallScene extends Scene {
           last.state = 'outside';
           this.outside.unshift(last);
         }
-        this.showBanner('OIBAI! AKIM KELDI!', C.red);
+        this.showBanner(t('akimCame'), C.red);
         this.selected = g;
         sfx('alarm');
       } else {
@@ -314,7 +311,7 @@ export class HallScene extends Scene {
       this.phaseT = 0;
       this.drag = null;
       this.syncButtons();
-      this.showBanner('TOI BUZYLDY!', C.red);
+      this.showBanner(t('title0'), C.red);
       playMusic('none');
       sfx('fail');
       return;
@@ -340,11 +337,11 @@ export class HallScene extends Scene {
     if (left > 1) {
       this.timeBonus = Math.floor(left);
       this.kurmet += this.timeBonus;
-      this.float(`TEZ! +${this.timeBonus}`, 90, 150, C.gold);
+      this.float(t('fast', this.timeBonus), 90, 150, C.gold);
     }
     this.refresh();
     this.shot = this.renderShot();
-    this.showBanner('ASABA KELDI!', C.gold);
+    this.showBanner(t('asabaCame'), C.gold);
     playMusic('menu');
     sfx('fanfare');
   }
@@ -358,7 +355,7 @@ export class HallScene extends Scene {
     let stars = 0;
     if (!failed) stars = ratio >= 0.9 && this.scandal < 35 ? 3 : ratio >= 0.7 ? 2 : ratio >= 0.45 ? 1 : 0;
     const score = stars ? Math.max(0, Math.round(this.kurmet + perfect * 5 + stars * 100 - this.scandal / 2)) : 0;
-    const title = TITLES[stars];
+    const title = titleFor(stars);
     go('result', {
       wave: this.w.n, stars, title, perfect, total, score,
       left: this.guests.filter((g) => g.state === 'left').length,
@@ -412,14 +409,14 @@ export class HallScene extends Scene {
     this.drag = null;
     this.hover = -1;
     if (!d || !d.moved || this.phase !== 'play') return;
-    const t = this.seatAt(x, y - input.liftY);
-    if (t < 0) return;
+    const to = this.seatAt(x, y - input.liftY);
+    if (to < 0) return;
     if (d.from < 0) {
-      if (this.occ[t] >= 0) {
-        this.float('ORYN BOS EMES!', 90, this.L.seats[t].y, C.cream);
+      if (this.occ[to] >= 0) {
+        this.float(t('seatTaken'), 90, this.L.seats[to].y, C.cream);
         sfx('bad');
-      } else this.seatGuest(d.g, t);
-    } else this.moveGuest(d.g, t);
+      } else this.seatGuest(d.g, to);
+    } else this.moveGuest(d.g, to);
   }
 
   // --- drawing ----------------------------------------------------------
@@ -470,11 +467,11 @@ export class HallScene extends Scene {
     rect(0, 0, w, h, C.maroon);
     band(0, 0, w);
     band(0, h - 5, w);
-    textS('TOI ESTELYGI', w / 2, 8, C.gold, 1, 'c');
+    textS(t('estelygi'), w / 2, 7, C.gold, 1, 'c');
     c.drawImage(this.shot!, 46, top, 88, ch, 6, 16, 88, ch);
     box(0, 15, w, ch + 2, C.gold);
     textS(title, w / 2, 20 + ch, stars === 3 ? C.gold : C.cream, 1, 'c');
-    text(new Date().toISOString().slice(0, 10) + ' - HALL ' + this.w.n, w / 2, 28 + ch, C.gold, 1, 'c');
+    text(new Date().toISOString().slice(0, 10), w / 2, 29 + ch, C.gold, 1, 'c');
     setCtx(prev);
     const [big, bc] = canvas(w * 4, h * 4);
     bc.drawImage(cv, 0, 0, w * 4, h * 4);
@@ -497,15 +494,16 @@ export class HallScene extends Scene {
   drawHud() {
     rect(0, 0, 180, 34, C.brown);
     band(0, 0, 180);
-    textS(`TOI ${this.w.n}: ${this.w.name}`, 4, 8, C.cream);
+    textS(`${t('toiN', this.w.n)}: ${t('hall_' + this.w.hall)}`, 4, 6, C.cream);
     const left = Math.max(0, Math.ceil(WAVE_TIME - this.elapsed));
     const warn = left <= 15 && this.phase === 'play';
     const tc = warn ? (Math.floor(this.clock * 4) % 2 ? C.red : C.cream) : C.gold;
-    textS(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, 176, 7, tc, 1, 'r');
-    text('KURMET', 4, 17, C.gold);
-    bar(34, 17, 122, 4, this.kurmet / this.maxK, C.gold);
-    text('SKANDAL', 4, 25, C.red);
-    bar(34, 25, 122, 4, this.scandal / 100, C.red);
+    textS(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, 176, 6, tc, 1, 'r');
+    const bx = Math.max(measure(t('kurmet')), measure(t('scandal'))) + 8;
+    text(t('kurmet'), 4, 15, C.gold);
+    bar(bx, 17, 156 - bx, 3, this.kurmet / this.maxK, C.gold);
+    text(t('scandal'), 4, 24, C.red);
+    bar(bx, 26, 156 - bx, 3, this.scandal / 100, C.red);
     rect(0, 33, 180, 1, C.gold);
   }
 
@@ -529,55 +527,57 @@ export class HallScene extends Scene {
 
     const g = this.drag?.g ?? (this.selected && this.selected.state !== 'left' ? this.selected : this.queue[0]);
     if (!g) {
-      if (this.phase === 'play') text('ZHDEM... GUESTS ARE COMING', 90, 302, C.tan, 1, 'c');
+      if (this.phase === 'play') text(t('coming'), 90, 302, C.tan, 1, 'c');
       return;
     }
-    const sideTxt = g.side === 'groom' ? 'KUIEU SIDE' : g.side === 'bride' ? 'KELIN SIDE' : 'ANY SIDE';
+    const sideTxt = t(g.side === 'groom' ? 'sideGroom' : g.side === 'bride' ? 'sideBride' : 'sideAny');
     const sideC = g.side === 'groom' ? C.teal : g.side === 'bride' ? C.red : C.gold;
-    textS(g.name, 4, 300, C.cream);
-    textS(sideTxt, 176, 300, sideC, 1, 'r');
+    textS(nm(g.name), 4, 299, C.cream);
+    textS(sideTxt, 176, 299, sideC, 1, 'r');
     let hint = this.hint(g);
     let hc: string = C.gold;
     if (g.state === 'seated' && g.viol.length) {
-      hint = REASON[g.viol[0]];
+      hint = reason(g.viol[0]);
       hc = C.red;
     }
-    textS(hint, 4, 308, hc);
+    textS(hint, 4, 307, hc);
   }
 
   hint(g: Guest): string {
     const R = this.w.rules;
-    if (g.kind === 'akim') return 'VIP: TOR ROW, ANY SIDE!';
-    if (isElder(g)) return KIND_LABEL[g.kind] + ': GOLD SEAT';
-    if (isKuda(g) && R.includes(3)) return `KUDA #${g.pair}: GOLD, FACE PAIR`;
-    if (g.kind === 'child' && R.includes(5)) return 'BALA: GREEN SEAT BY DOOR';
-    if (g.feud && R.includes(4)) return `FEUD #${g.feud}: KEEP APART!`;
-    return 'GUEST: NOT ON TOR ROW';
+    if (g.kind === 'akim') return t('h_akim');
+    if (isElder(g)) return t('h_elder');
+    if (isKuda(g) && R.includes(3)) return t('h_kuda', g.pair);
+    if (g.kind === 'child' && R.includes(5)) return t('h_child');
+    if (g.feud && R.includes(4)) return t('h_feud', g.feud);
+    return t('h_guest');
   }
 
   drawRulesPanel(title: string) {
     panel(8, 42, 164, 214);
-    textO(title, 90, 52, C.gold, 2, 'c');
-    textS(`${this.w.name} - ${this.w.seats} ORYN`, 90, 66, C.cream, 1, 'c');
-    let y = 78;
-    for (const r of this.w.rules) {
-      textS(String(r), 16, y, C.gold);
-      for (const line of wrap(RULE_TEXT[r], 140)) {
+    textO(title, 90, 50, C.gold, 2, 'c');
+    textS(`${t('hall_' + this.w.hall)} - ${t('seats', this.w.seats)}`, 90, 67, C.cream, 1, 'c');
+    // Long languages (ru/kk) get tighter lines so wave 3's five rules still fit above the button.
+    const rules = this.w.rules.map((r) => wrap(t('rule' + r), 142));
+    const help = this.w.n === 1 || this.phase === 'rules' ? wrap(t('dragHelp'), 150) : [];
+    const count = rules.flat().length + help.length + (this.w.surprise ? 1 : 0);
+    const lh = 81 + count * 9 + rules.length * 3 > 226 ? 8 : 9;
+    let y = 81;
+    rules.forEach((lines, i) => {
+      textS(String(this.w.rules[i]), 16, y, C.gold);
+      for (const line of lines) {
         text(line, 24, y, C.cream);
-        y += 7;
+        y += lh;
       }
-      y += 4;
-    }
+      y += 3;
+    });
     if (this.w.surprise) {
-      for (const line of wrap('BEWARE: A SURPRISE GUEST MAY ARRIVE!', 148)) {
-        textS(line, 90, y, C.gold, 1, 'c');
-        y += 7;
-      }
-      y += 4;
+      textS(t('surprise'), 90, y, C.gold, 1, 'c');
+      y += lh + 3;
     }
-    for (const line of wrap('DRAG GUESTS FROM THE QUEUE TO A SEAT. DRAG SEATED GUESTS TO SWAP.', 148)) {
+    for (const line of help) {
       text(line, 90, y, C.tan, 1, 'c');
-      y += 7;
+      y += lh;
     }
   }
 
@@ -607,7 +607,8 @@ export class HallScene extends Scene {
     for (const p of this.sparks) rect(p.x, p.y, 1, 1, p.c);
     for (const f of this.floaters) {
       ctx.globalAlpha = Math.min(1, (1.3 - f.t) * 3);
-      textO(f.s, Math.max(4 + f.s.length * 2, Math.min(176 - f.s.length * 2, f.x)), f.y, f.c, 1, 'c');
+      const hw = measure(f.s) / 2 + 2;
+      textO(f.s, Math.max(hw, Math.min(180 - hw, f.x)), f.y, f.c, 1, 'c');
     }
     ctx.globalAlpha = 1;
 
@@ -622,14 +623,15 @@ export class HallScene extends Scene {
     if (this.banner) {
       const b = this.banner;
       const y = 130 - Math.max(0, 0.2 - b.t) * 100;
-      rect(0, y - 6, 180, 22, C.brown);
-      band(0, y - 6, 180);
-      band(0, y + 11, 180);
-      textO(b.s, 90, y, b.c, measure(b.s, 2) <= 170 ? 2 : 1, 'c');
+      const big = measure(b.s, 2) <= 170;
+      rect(0, y - 7, 180, 26, C.brown);
+      band(0, y - 7, 180);
+      band(0, y + 14, 180);
+      textO(b.s, 90, big ? y : y + 3, b.c, big ? 2 : 1, 'c');
     }
 
-    if (this.phase === 'intro') this.drawRulesPanel(`TOI ${this.w.n}`);
-    if (this.phase === 'rules') this.drawRulesPanel('EREZHE');
+    if (this.phase === 'intro') this.drawRulesPanel(t('toiN', this.w.n));
+    if (this.phase === 'rules') this.drawRulesPanel(t('rules'));
     this.drawButtons();
   }
 }

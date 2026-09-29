@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 // State of the current toi (three waves + shashu rounds).
 export const run = {
   wave: 0, // index into WAVES
@@ -19,7 +21,7 @@ export const run = {
   },
 };
 
-export const TITLES = ['TOI BUZYLDY!', 'ZHAMAN TOISHY', 'ZHAKSY TOISHY', 'ULY TOISHY'];
+export const title = (stars: number) => t('title' + stars);
 
 /** Pixels the dragged sprite floats above the pointer (so a finger doesn't hide it). */
 export const input = { liftY: 16 };

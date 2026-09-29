@@ -14,24 +14,66 @@ export const C = {
 export const W = 180;
 export const H = 320;
 
-// 3x5 glyphs, rows concatenated.
-const GLYPHS: Record<string, string> = {
-  A: '.X.X.XXXXX.XX.X', B: 'XX.X.XXX.X.XXX.', C: '.XXX..X..X...XX', D: 'XX.X.XX.XX.XXX.',
-  E: 'XXXX..XX.X..XXX', F: 'XXXX..XX.X..X..', G: '.XXX..X.XX.X.XX', H: 'X.XX.XXXXX.XX.X',
-  I: 'XXX.X..X..X.XXX', J: '..X..X..XX.X.X.', K: 'X.XX.XXX.X.XX.X', L: 'X..X..X..X..XXX',
-  M: 'X.XXXXXXXX.XX.X', N: 'XX.X.XX.XX.XX.X', O: '.X.X.XX.XX.X.X.', P: 'XX.X.XXX.X..X..',
-  Q: '.X.X.XX.XXX..XX', R: 'XX.X.XXX.X.XX.X', S: '.XXX...X...XXX.', T: 'XXX.X..X..X..X.',
-  U: 'X.XX.XX.XX.XXXX', V: 'X.XX.XX.XX.X.X.', W: 'X.XX.XXXXXXXX.X', X: 'X.XX.X.X.X.XX.X',
-  Y: 'X.XX.X.X..X..X.', Z: 'XXX..X.X.X..XXX',
-  '0': 'XXXX.XX.XX.XXXX', '1': '.X.XX..X..X.XXX', '2': 'XX...X.X.X..XXX', '3': 'XX...X.X...XXX.',
-  '4': 'X.XX.XXXX..X..X', '5': 'XXXX..XX...XXX.', '6': '.XXX..XXXX.XXXX', '7': 'XXX..X.X..X..X.',
-  '8': 'XXXX.XXXXX.XXXX', '9': 'XXXX.XXXX..XXX.',
-  '!': '.X..X..X.....X.', '?': 'XX...X.X.....X.', '.': '.............X.', ',': '..........X.X..',
-  ':': '....X.....X....', '-': '......XXX......', '+': '....X.XXX.X....', '/': '..X..X.X.X..X..',
-  "'": '.X..X..........', '%': 'X.X..X.X.X..X.X', '(': '.X.X..X..X...X.', ')': '.X...X..X..X.X.',
-  '*': '...X.X.X.X.X...', '=': '...XXX...XXX...', '<': '..X.X.X...X...X', '>': 'X...X...X.X.X..',
-  '#': 'X.XXXXX.XXXXX.X', _: '............XXX',
+// 5x7 proportional pixel font (LCD-style caps). Rows separated by '|'; glyph width = row length.
+const FONT_SRC: Record<string, string> = {
+  A: '.XXX.|X...X|X...X|XXXXX|X...X|X...X|X...X', B: 'XXXX.|X...X|X...X|XXXX.|X...X|X...X|XXXX.',
+  C: '.XXX.|X...X|X....|X....|X....|X...X|.XXX.', D: 'XXXX.|X...X|X...X|X...X|X...X|X...X|XXXX.',
+  E: 'XXXX|X...|X...|XXX.|X...|X...|XXXX', F: 'XXXX|X...|X...|XXX.|X...|X...|X...',
+  G: '.XXX.|X...X|X....|X.XXX|X...X|X...X|.XXXX', H: 'X...X|X...X|X...X|XXXXX|X...X|X...X|X...X',
+  I: 'XXX|.X.|.X.|.X.|.X.|.X.|XXX', J: '...X|...X|...X|...X|...X|X..X|.XX.',
+  K: 'X...X|X..X.|X.X..|XX...|X.X..|X..X.|X...X', L: 'X...|X...|X...|X...|X...|X...|XXXX',
+  M: 'X...X|XX.XX|X.X.X|X.X.X|X...X|X...X|X...X', N: 'X...X|X...X|XX..X|X.X.X|X..XX|X...X|X...X',
+  O: '.XXX.|X...X|X...X|X...X|X...X|X...X|.XXX.', P: 'XXXX.|X...X|X...X|XXXX.|X....|X....|X....',
+  Q: '.XXX.|X...X|X...X|X...X|X.X.X|X..X.|.XX.X', R: 'XXXX.|X...X|X...X|XXXX.|X.X..|X..X.|X...X',
+  S: '.XXXX|X....|X....|.XXX.|....X|....X|XXXX.', T: 'XXXXX|..X..|..X..|..X..|..X..|..X..|..X..',
+  U: 'X...X|X...X|X...X|X...X|X...X|X...X|.XXX.', V: 'X...X|X...X|X...X|X...X|X...X|.X.X.|..X..',
+  W: 'X...X|X...X|X...X|X.X.X|X.X.X|X.X.X|.X.X.', X: 'X...X|X...X|.X.X.|..X..|.X.X.|X...X|X...X',
+  Y: 'X...X|X...X|.X.X.|..X..|..X..|..X..|..X..', Z: 'XXXXX|....X|...X.|..X..|.X...|X....|XXXXX',
+  '0': '.XXX.|X...X|X..XX|X.X.X|XX..X|X...X|.XXX.', '1': '.X.|XX.|.X.|.X.|.X.|.X.|XXX',
+  '2': '.XXX.|X...X|....X|...X.|..X..|.X...|XXXXX', '3': 'XXXXX|...X.|..X..|...X.|....X|X...X|.XXX.',
+  '4': '...X.|..XX.|.X.X.|X..X.|XXXXX|...X.|...X.', '5': 'XXXXX|X....|XXXX.|....X|....X|X...X|.XXX.',
+  '6': '..XX.|.X...|X....|XXXX.|X...X|X...X|.XXX.', '7': 'XXXXX|....X|...X.|..X..|.X...|.X...|.X...',
+  '8': '.XXX.|X...X|X...X|.XXX.|X...X|X...X|.XXX.', '9': '.XXX.|X...X|X...X|.XXXX|....X|...X.|.XX..',
+  '!': 'X|X|X|X|X|.|X', '?': '.XXX.|X...X|....X|...X.|..X..|.....|..X..', '.': '.|.|.|.|.|.|X',
+  ',': '..|..|..|..|..|.X|X.', ':': '.|.|X|.|.|X|.', '-': '....|....|....|XXXX|....|....|....',
+  '+': '.....|..X..|..X..|XXXXX|..X..|..X..|.....', '/': '....X|....X|...X.|..X..|.X...|X....|X....',
+  "'": 'X|X|.|.|.|.|.', '%': 'XX...|XX..X|...X.|..X..|.X...|X..XX|...XX', '(': '.X|X.|X.|X.|X.|X.|.X',
+  ')': 'X.|.X|.X|.X|.X|.X|X.', '*': '.....|..X..|X.X.X|.XXX.|X.X.X|..X..|.....', '=': '....|....|XXXX|....|XXXX|....|....',
+  '<': '...X|..X.|.X..|X...|.X..|..X.|...X', '>': 'X...|.X..|..X.|...X|..X.|.X..|X...',
+  '#': '.X.X.|.X.X.|XXXXX|.X.X.|XXXXX|.X.X.|.X.X.', _: '....|....|....|....|....|....|XXXX', ' ': '..|..|..|..|..|..|..',
 };
+
+// Cyrillic (Russian + Kazakh). Letters that look like Latin ones reuse those glyphs.
+const CYR_SRC: Record<string, string> = {
+  'Б': 'XXXXX|X....|X....|XXXX.|X...X|X...X|XXXX.', 'Г': 'XXXX|X...|X...|X...|X...|X...|X...',
+  'Д': '..XX.|.X.X.|.X.X.|.X.X.|.X.X.|XXXXX|X...X', 'Ё': '.X.X|....|XXXX|X...|XXX.|X...|XXXX',
+  'Ж': 'X.X.X|X.X.X|.XXX.|..X..|.XXX.|X.X.X|X.X.X', 'З': '.XXX.|X...X|....X|..XX.|....X|X...X|.XXX.',
+  'И': 'X...X|X...X|X..XX|X.X.X|XX..X|X...X|X...X', 'Й': '.X.X.|..X..|X...X|X..XX|X.X.X|XX..X|X...X',
+  'Л': '..XXX|.X..X|.X..X|.X..X|.X..X|.X..X|X...X', 'П': 'XXXXX|X...X|X...X|X...X|X...X|X...X|X...X',
+  'У': 'X...X|X...X|X...X|.XXXX|....X|X...X|.XXX.', 'Ф': '..X..|.XXX.|X.X.X|X.X.X|X.X.X|.XXX.|..X..',
+  'Ц': 'X..X.|X..X.|X..X.|X..X.|X..X.|XXXXX|....X', 'Ч': 'X...X|X...X|X...X|.XXXX|....X|....X|....X',
+  'Ш': 'X.X.X|X.X.X|X.X.X|X.X.X|X.X.X|X.X.X|XXXXX', 'Щ': 'X.X.X.|X.X.X.|X.X.X.|X.X.X.|X.X.X.|XXXXXX|.....X',
+  'Ъ': 'XX...|.X...|.X...|.XXX.|.X..X|.X..X|.XXX.', 'Ы': 'X...X|X...X|X...X|XXX.X|X..XX|X..XX|XXX.X',
+  'Ь': 'X...|X...|X...|XXX.|X..X|X..X|XXX.', 'Э': '.XXX.|X...X|....X|..XXX|....X|X...X|.XXX.',
+  'Ю': 'X..X.|X.X.X|X.X.X|XXX.X|X.X.X|X.X.X|X..X.', 'Я': '.XXXX|X...X|X...X|.XXXX|..X.X|.X..X|X...X',
+  'Ә': '.XXX.|....X|....X|XXXXX|X...X|X...X|.XXX.', 'Ғ': '.XXXX|.X...|.X...|XXX..|.X...|.X...|.X...',
+  'Қ': 'X..X.|X.X..|XX...|XX...|X.X..|X..X.|X..XX', 'Ң': 'X...X.|X...X.|X...X.|XXXXX.|X...X.|X...X.|X...XX',
+  'Ө': '.XXX.|X...X|X...X|XXXXX|X...X|X...X|.XXX.', 'Ұ': 'X...X|X...X|.X.X.|..X..|XXXXX|..X..|..X..',
+  'Һ': 'X...|X...|XXX.|X..X|X..X|X..X|X..X',
+};
+const CYR_ALIAS: Record<string, string> = {
+  'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'Х': 'X', 'І': 'I', 'Ү': 'Y',
+};
+Object.assign(FONT_SRC, CYR_SRC);
+for (const [c, l] of Object.entries(CYR_ALIAS)) FONT_SRC[c] = FONT_SRC[l];
+
+export const FONT_H = 7;
+
+const GLYPHS: Record<string, { w: number; rows: string[] }> = {};
+for (const [ch, src] of Object.entries(FONT_SRC)) {
+  const rows = src.split('|');
+  GLYPHS[ch] = { w: rows[0].length, rows };
+}
 
 export let ctx: CanvasRenderingContext2D;
 
@@ -64,7 +106,9 @@ export function box(x: number, y: number, w: number, h: number, c: string) {
 }
 
 export function measure(s: string, scale = 1) {
-  return s.length ? (s.length * 4 - 1) * scale : 0;
+  let w = 0;
+  for (const ch of s.toUpperCase()) w += ((GLYPHS[ch]?.w ?? 3) + 1) * scale;
+  return Math.max(0, w - scale);
 }
 
 export type Align = 'l' | 'c' | 'r';
@@ -77,11 +121,12 @@ export function text(s: string, x: number, y: number, c: string, scale = 1, alig
   for (const ch of s) {
     const g = GLYPHS[ch];
     if (g) {
-      for (let i = 0; i < 15; i++) {
-        if (g[i] === 'X') ctx.fillRect(cx + (i % 3) * scale, cy + Math.floor(i / 3) * scale, scale, scale);
+      for (let r = 0; r < FONT_H; r++) {
+        const row = g.rows[r];
+        for (let i = 0; i < g.w; i++) if (row[i] === 'X') ctx.fillRect(cx + i * scale, cy + r * scale, scale, scale);
       }
     }
-    cx += 4 * scale;
+    cx += ((g?.w ?? 3) + 1) * scale;
   }
 }
 

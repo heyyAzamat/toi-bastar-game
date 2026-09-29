@@ -6,7 +6,6 @@ export type HallKind = 'yurt' | 'cafe' | 'banquet';
 
 export interface WaveDef {
   n: number;
-  name: string;
   hall: HallKind;
   seats: number;
   rules: number[];
@@ -17,20 +16,12 @@ export interface WaveDef {
 }
 
 export const WAVES: WaveDef[] = [
-  { n: 1, name: 'KIIZ UI', hall: 'yurt', seats: 8, rules: [1, 2], honorRows: 2, childRows: 0, window: 40, surprise: false },
-  { n: 2, name: 'KAFE', hall: 'cafe', seats: 16, rules: [1, 2, 3, 4], honorRows: 3, childRows: 0, window: 52, surprise: false },
-  { n: 3, name: 'TOIKHANA', hall: 'banquet', seats: 24, rules: [1, 2, 3, 4, 5], honorRows: 4, childRows: 4, window: 58, surprise: true },
+  { n: 1, hall: 'yurt', seats: 8, rules: [1, 2], honorRows: 2, childRows: 0, window: 40, surprise: false },
+  { n: 2, hall: 'cafe', seats: 16, rules: [1, 2, 3, 4], honorRows: 3, childRows: 0, window: 52, surprise: false },
+  { n: 3, hall: 'banquet', seats: 24, rules: [1, 2, 3, 4, 5], honorRows: 4, childRows: 4, window: 58, surprise: true },
 ];
 
 export const WAVE_TIME = 75;
-
-export const RULE_TEXT: Record<number, string> = {
-  1: 'ELDERS (AKSAKAL, AZHE) SIT NEAR THE TOR: GOLD SEATS. NO YOUNG GUEST ON THE TOR ROW.',
-  2: 'KUIEU SIDE (BLUE) SITS LEFT. KELIN SIDE (RED) SITS RIGHT.',
-  3: 'KUDA (RING) TAKE GOLD SEATS, FACING THEIR PAIR ACROSS THE TABLE.',
-  4: 'GUESTS WITH A BOLT ARE FEUDING: NOT NEXT TO EACH OTHER.',
-  5: 'CHILDREN SIT AT THE DOOR END: GREEN SEATS.',
-};
 
 export interface Guest {
   id: number;
@@ -72,15 +63,16 @@ function shuffle<T>(a: T[], r: () => number): T[] {
   return a;
 }
 
+// Kazakh Cyrillic; nm() transliterates for English.
 const NAMES: Record<string, string[]> = {
-  aksakal: ['KENZHE ATA', 'ORAZ ATA', 'ZHAKSYLYK ATA', 'TOLEU ATA', 'BAKHYT ATA', 'SABIT ATA'],
-  azhe: ['RAUSHAN AZHE', 'BIBIGUL AZHE', 'KULYAN AZHE', 'ZHAMAL AZHE', 'SAKEN AZHE'],
-  kuda: ['KUDA BEKZAT', 'KUDA ERBOL', 'KUDA SAMAT', 'KUDA ZHANDOS'],
-  kudagi: ['KUDAGI ROZA', 'KUDAGI ALMA', 'KUDAGI SHOLPAN', 'KUDAGI LAURA'],
-  zhigit: ['NURLAN', 'SERIK', 'BOLAT', 'DAULET', 'ARMAN', 'ERLAN', 'ASAN', 'MARAT', 'RUSLAN', 'TIMUR', 'ASKAR', 'KAIRAT', 'ERZHAN'],
-  kelin: ['AIGERIM', 'DANA', 'MADINA', 'GULNAR', 'ZHANAR', 'SAULE', 'AIZHAN', 'DINARA', 'ASEL', 'KAMILA', 'MERUERT'],
-  child: ['ARU', 'ALIKHAN', 'DIAS', 'TOMIRIS', 'ANSAR', 'AYARU', 'NURAI', 'ALAN'],
-  akim: ['AKIM MUKHTAR'],
+  aksakal: ['КЕНЖЕ АТА', 'ОРАЗ АТА', 'ЖАҚСЫЛЫҚ АТА', 'ТӨЛЕУ АТА', 'БАҚЫТ АТА', 'САБИТ АТА'],
+  azhe: ['РАУШАН ӘЖЕ', 'БИБІГҮЛ ӘЖЕ', 'КҮЛЯН ӘЖЕ', 'ЖАМАЛ ӘЖЕ', 'ҮМІТ ӘЖЕ'],
+  kuda: ['ҚҰДА БЕКЗАТ', 'ҚҰДА ЕРБОЛ', 'ҚҰДА САМАТ', 'ҚҰДА ЖАНДОС'],
+  kudagi: ['ҚҰДАҒИ РОЗА', 'ҚҰДАҒИ АЛМА', 'ҚҰДАҒИ ШОЛПАН', 'ҚҰДАҒИ ЛАУРА'],
+  zhigit: ['НҰРЛАН', 'СЕРІК', 'БОЛАТ', 'ДӘУЛЕТ', 'АРМАН', 'ЕРЛАН', 'АСАН', 'МАРАТ', 'РУСЛАН', 'ТИМУР', 'АСҚАР', 'ҚАЙРАТ', 'ЕРЖАН'],
+  kelin: ['ӘЙГЕРІМ', 'ДАНА', 'МАДИНА', 'ГҮЛНАР', 'ЖАНАР', 'СӘУЛЕ', 'АЙЖАН', 'ДИНАРА', 'ӘСЕЛ', 'КАМИЛА', 'МЕРУЕРТ'],
+  child: ['АРУ', 'ӘЛИХАН', 'ДИАС', 'ТОМИРИС', 'АНСАР', 'АЯРУ', 'НҰРАЙ', 'АЛАН'],
+  akim: ['ӘКІМ МҰХТАР'],
 };
 
 export function makeGuests(w: WaveDef, seed: number): Guest[] {
@@ -168,8 +160,3 @@ export function makeGuests(w: WaveDef, seed: number): Guest[] {
   }
   return guests;
 }
-
-export const KIND_LABEL: Record<Kind, string> = {
-  aksakal: 'AKSAKAL - ELDER', azhe: 'AZHE - ELDER', kuda: 'KUDA - IN-LAW', kudagi: 'KUDAGI - IN-LAW',
-  zhigit: 'GUEST', kelin: 'GUEST', child: 'BALA - CHILD', akim: 'AKIM - VIP!', asaba: 'ASABA',
-};

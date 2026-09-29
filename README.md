@@ -9,6 +9,9 @@ npm run dev        # http://localhost:5173
 npm run build      # dist/ (static)
 ```
 
+Languages: Kazakh, Russian, English (`src/i18n.ts`). The first launch follows the device language; the start screen has a switch.
+The 5x7 pixel font includes Latin and Cyrillic, with the Kazakh letters Ә Ғ Қ Ң Ө Ұ Ү Һ І.
+
 Dev-only URL params: `?wave=3` jumps to a wave, `?speed=4` fast-forwards time.
 
 ## How it plays

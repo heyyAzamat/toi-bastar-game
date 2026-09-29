@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
   const ok =
     typeof b?.id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(b.id) &&
-    typeof b.name === 'string' && /^[A-Z0-9 _.-]{1,12}$/.test(b.name) &&
+    typeof b.name === 'string' && /^[A-Z0-9А-ЯЁӘҒҚҢӨҰҮҺІ _.-]{1,12}$/.test(b.name) &&
     Number.isInteger(b.score) && b.score >= 0 && b.score <= 20000 &&
     Number.isInteger(b.stars) && b.stars >= 0 && b.stars <= 9 &&
     (b.wallet == null || (typeof b.wallet === 'string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(b.wallet)));

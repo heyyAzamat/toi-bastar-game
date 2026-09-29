@@ -21,6 +21,7 @@ export interface Profile {
   walletKind: 'phantom' | 'solflare' | null;
   mementos: Memento[];
   muted: boolean;
+  lang: string;
 }
 
 const KEY = 'toi-bastar-profile';
@@ -32,7 +33,7 @@ function newId() {
 function load(): Profile {
   const base: Profile = {
     id: newId(), name: 'TOISHY', coins: 0, best: 0, stars: 0, games: 0,
-    wallet: null, walletKind: null, mementos: [], muted: false,
+    wallet: null, walletKind: null, mementos: [], muted: false, lang: '',
   };
   try {
     const raw = localStorage.getItem(KEY);

@@ -1,5 +1,5 @@
 // Scene base class, buttons, router.
-import { C, rect, box, textS, measure } from './gfx';
+import { C, rect, box, textS, measure, FONT_H } from './gfx';
 import { sfx } from './audio';
 
 export interface Btn {
@@ -23,8 +23,8 @@ export function drawBtn(b: Btn, pressed: boolean) {
   rect(b.x + off, b.y + off, b.w, b.h, fill);
   box(b.x + off, b.y + off, b.w, b.h, b.disabled ? C.tan : C.gold);
   if (!b.disabled) rect(b.x + 1 + off, b.y + 1 + off, b.w - 2, 1, b.primary ? C.gold : C.red);
-  const scale = b.h >= 16 && measure(b.label, 2) <= b.w - 6 ? 2 : 1;
-  textS(b.label, b.x + b.w / 2 + off, b.y + Math.floor((b.h - 5 * scale) / 2) + off, b.disabled ? C.tan : C.cream, scale, 'c');
+  const scale = b.h >= 18 && measure(b.label, 2) <= b.w - 6 ? 2 : 1;
+  textS(b.label, b.x + b.w / 2 + off, b.y + Math.floor((b.h - FONT_H * scale) / 2) + off, b.disabled ? C.tan : C.cream, scale, 'c');
 }
 
 export abstract class Scene {

@@ -1,6 +1,7 @@
 // Hall geometry and the cached background (floor, dastarkhan, food, cushions).
 import { C, canvas, setCtx, rect, box, band, vband, text, textS, ctx } from './gfx';
 import { rng, type WaveDef } from './waves';
+import { t } from './i18n';
 
 export interface Seat {
   i: number;
@@ -157,11 +158,11 @@ export function renderBackground(w: WaveDef, L: Layout, seed: number): HTMLCanva
   rect(TABLE_X - 22, tt - 21, TABLE_W + 44, 16, C.maroon);
   band(TABLE_X - 21, tt - 20, TABLE_W + 42, C.gold, C.maroon);
   box(TABLE_X - 22, tt - 21, TABLE_W + 44, 16, C.gold);
-  textS('TOR', 90, tt - 13, C.cream, 1, 'c');
+  textS(t('tor'), 90, tt - 14, C.cream, 1, 'c');
 
   // Side labels.
-  textS('KUIEU', 35, tt - 15, C.teal, 1, 'c');
-  textS('KELIN', 145, tt - 15, C.red, 1, 'c');
+  textS(t('groom'), 23, tt - 16, C.teal, 1, 'c');
+  textS(t('bride'), 157, tt - 16, C.red, 1, 'c');
 
   // Dastarkhan.
   rect(TABLE_X + 1, tt - 3, TABLE_W, L.tableH + 6, C.brown);
@@ -179,9 +180,9 @@ export function renderBackground(w: WaveDef, L: Layout, seed: number): HTMLCanva
   }
 
   // Door (esik).
-  rect(78, HALL_BOTTOM - 10, 24, 10, C.brown);
-  rect(80, HALL_BOTTOM - 8, 20, 8, C.tan);
-  text('ESIK', 90, HALL_BOTTOM - 7, C.brown, 1, 'c');
+  rect(74, HALL_BOTTOM - 11, 32, 11, C.brown);
+  rect(76, HALL_BOTTOM - 9, 28, 9, C.tan);
+  text(t('door'), 90, HALL_BOTTOM - 8, C.brown, 1, 'c');
 
   setCtx(prev);
   return cv;
