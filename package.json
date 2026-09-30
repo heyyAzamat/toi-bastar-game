@@ -19,7 +19,10 @@
     "@metaplex-foundation/umi-bundle-defaults": "^1.6.0",
     "@metaplex-foundation/umi-signer-wallet-adapters": "^1.6.0",
     "@metaplex-foundation/umi-uploader-irys": "^1.6.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/spl-token-metadata": "^0.1.6",
     "@solana/web3.js": "^1.99.0",
+    "bs58": "^6.0.0",
     "buffer": "^6.0.3"
   }
 }

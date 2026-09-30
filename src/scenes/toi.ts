@@ -8,10 +8,11 @@ import { t, nm } from '../i18n';
 import { profile, saveProfile, download } from '../storage';
 import { connectWallet, shortAddr, hasWallet, isMobile, openInWallet } from '../solana';
 import { askText } from '../modal';
+import { claimTenge, onchainTenge, tengeEnabled } from '../tenge';
 import { makeInvite, inviteUrl, telegramUrl, showDate, todayIso, type ToiInvite } from '../toi/link';
 import { fetchWishes, seating, sendWish, airdrop, explorerTx, explorerAddr, type Wish } from '../toi/chain';
 import { ToiTable, AVATARS, avatarSprite } from '../toi/table';
-import { mintToiNft } from '../toi/nft';
+import { mintEstelygi } from '../toi/nft';
 
 function ornamentFrame() {
   rect(0, 0, 180, 320, C.maroon);
@@ -197,7 +198,17 @@ export class GuestbookScene extends Scene {
     this.minting = true;
     this.build();
     const snap = this.table.snapshot(this.seats);
-    const r = await mintToiNft(this.inv, snap.png, this.seats.size, (s) => { this.status = s === 'upload' ? t('uploading') : t('mintingNft'); });
+    const inv = this.inv;
+    const r = await mintEstelygi(snap.png, {
+      name: `Toi Estelygi: ${inv.n}`,
+      description: `${inv.n}, ${inv.d}. Hosted by ${inv.h} in Toi Bastar!`,
+      attributes: [
+        { trait_type: 'Toi', value: inv.n },
+        { trait_type: 'Date', value: inv.d },
+        { trait_type: 'Host', value: inv.h },
+        { trait_type: 'Guests', value: this.seats.size },
+      ],
+    }, (s) => { this.status = s === 'upload' ? t('uploading') : t('mintingNft'); });
     this.minting = false;
     if (r.ok) {
       this.status = t('minted', shortAddr(r.asset));
@@ -267,6 +278,7 @@ export class InviteScene extends Scene {
   sig = '';
   clock = 0;
   shower = new Shower();
+  balance: number | null = null; // TENGE the guest can throw (on-chain when the token is set up)
   enter(inv: ToiInvite | 'bad') {
     this.clock = 0;
     this.status = '';
@@ -280,6 +292,7 @@ export class InviteScene extends Scene {
     this.table = new ToiTable(inv);
     this.step = 'card';
     this.mySeat = -1;
+    this.balance = null;
     this.avatar = profile.equip.avatar;
     this.tenge = 0;
     this.wish = '';
@@ -296,11 +309,12 @@ export class InviteScene extends Scene {
       next.disabled = this.mySeat < 0;
       this.buttons = [btn(14, 294, 74, 16, t('back'), () => { this.step = 'card'; this.build(); }), next];
     } else if (this.step === 'gift') {
+      if (this.balance === null) this.loadBalance();
       const amounts = [0, 1, 5, 10, 25];
       this.buttons = amounts.map((a, i) => {
         const b = btn(14 + i * 31, 96, 28, 16, String(a), () => { this.tenge = a; this.build(); });
         b.primary = this.tenge === a;
-        b.disabled = a > profile.coins;
+        b.disabled = a > (this.balance ?? 0);
         return b;
       });
       this.buttons.push(btn(20, 150, 140, 16, t('writeWish'), async () => {
@@ -322,7 +336,10 @@ export class InviteScene extends Scene {
       } else {
         const send = btn(20, 236, 140, 20, t('send'), () => this.send(), true);
         send.disabled = !this.wish;
-        this.buttons.push(send, btn(20, 260, 140, 14, t('getSol'), () => this.getSol()));
+        this.buttons.push(send, btn(20, 260, 68, 14, t('getSol'), () => this.getSol()));
+        const claim = btn(92, 260, 68, 14, t('claim', Math.min(200, profile.coins)), () => this.claim());
+        claim.disabled = !tengeEnabled() || profile.coins < 1;
+        this.buttons.push(claim);
       }
       this.buttons.push(btn(14, 294, 74, 16, t('back'), () => { this.step = 'seat'; this.build(); }));
     } else if (this.step === 'done') {
@@ -332,10 +349,34 @@ export class InviteScene extends Scene {
       ];
     } else this.buttons = [];
   }
+  /** On-chain TENGE when the token is set up; otherwise the local balance (shashu then goes as devnet SOL). */
+  loadBalance() {
+    if (!tengeEnabled()) {
+      this.balance = profile.coins;
+      return;
+    }
+    if (!profile.wallet) {
+      this.balance = 0;
+      return;
+    }
+    onchainTenge(profile.wallet).then((n) => {
+      const changed = n !== this.balance;
+      this.balance = n;
+      if (changed && this.step === 'gift') this.build();
+    }).catch(() => { this.balance = 0; });
+  }
+  async claim() {
+    this.status = t('signing');
+    const r = await claimTenge();
+    this.status = r.ok ? t('claimed', r.amount) : r.reason === 'limit' ? t('claimLimit') : t('sendFailed', (r as any).detail ?? r.reason);
+    this.balance = null;
+    this.build();
+  }
   async connect(kind: 'phantom' | 'solflare') {
     this.status = hasWallet(kind) ? t('connecting') : t('noWallet');
     try {
       if (await connectWallet(kind)) this.status = '';
+      this.balance = null;
     } catch {
       this.status = t('rejected');
     }
@@ -357,8 +398,11 @@ export class InviteScene extends Scene {
     const r = await sendWish(this.inv, this.mySeat, this.tenge, this.avatar, this.wish);
     if (r.ok) {
       this.sig = r.sig;
-      profile.coins -= this.tenge;
-      saveProfile();
+      // Local tenge is spent only when shashu went as devnet SOL; TENGE left the wallet on-chain.
+      if (!tengeEnabled()) {
+        profile.coins -= this.tenge;
+        saveProfile();
+      }
       this.step = 'done';
       this.status = '';
       this.shower.pour(30 + this.tenge * 4);
@@ -366,7 +410,7 @@ export class InviteScene extends Scene {
       applause(2.5);
     } else {
       this.step = 'gift';
-      this.status = r.reason === 'no-sol' ? t('needSol') : r.reason === 'rejected' ? t('rejected') : t('sendFailed', r.detail ?? '');
+      this.status = r.reason === 'no-sol' ? t('needSol') : r.reason === 'no-tenge' ? t('noTengeWallet') : r.reason === 'rejected' ? t('rejected') : t('sendFailed', r.detail ?? '');
     }
     this.build();
   }
@@ -463,7 +507,7 @@ export class InviteScene extends Scene {
     textS(profile.name, 56, 64, C.cream);
     if (this.step !== 'done') {
       textS(t('throwShashu'), 90, 28, C.cream, 1, 'c');
-      text(t('yourTenge', profile.coins), 90, 84, C.tan, 1, 'c');
+      text(this.balance === null ? t('loading') : t('yourTenge', this.balance), 90, 84, C.tan, 1, 'c');
       text(t('wishQ'), 90, 124, C.gold, 1, 'c');
       rect(14, 134, 152, 12, C.brown);
       text(this.wish ? `${this.wish.length}/140` : '-', 90, 137, C.cream, 1, 'c');

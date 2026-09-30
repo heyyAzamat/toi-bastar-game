@@ -1,5 +1,5 @@
 // Optional Solana layer via injected wallet providers (Phantom / Solflare). No SDK needed.
-import { profile, saveProfile, type Memento } from './storage';
+import { profile, saveProfile } from './storage';
 
 type WalletKind = 'phantom' | 'solflare';
 
@@ -71,67 +71,4 @@ export async function restoreWallet() {
     await p?.connect({ onlyIfTrusted: true });
     profile.wallet = p?.publicKey?.toString() ?? profile.wallet;
   } catch {}
-}
-
-function toBase64(b: Uint8Array) {
-  let s = '';
-  b.forEach((x) => (s += String.fromCharCode(x)));
-  return btoa(s);
-}
-
-async function sha256Hex(text: string) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-export function mementoMetadata(m: Memento, owner: string) {
-  return {
-    name: `Toi Estelygi - ${m.title}`,
-    symbol: 'TOI',
-    description: `A 3-star toi hosted by ${profile.name} in Toi Bastar!`,
-    image: 'image.png',
-    attributes: [
-      { trait_type: 'Title', value: m.title },
-      { trait_type: 'Stars', value: m.stars },
-      { trait_type: 'Hall', value: m.wave },
-      { trait_type: 'Date', value: m.date },
-    ],
-    properties: { creators: [{ address: owner, share: 100 }], files: [{ uri: 'image.png', type: 'image/png' }] },
-  };
-}
-
-export type MintResult = { ok: true; mint: string } | { ok: false; reason: 'no-wallet' | 'no-service' | 'error'; detail?: string };
-
-/**
- * The player signs the snapshot hash (proof of authorship), then a mint service
- * (VITE_MINT_API) uploads the image and mints the NFT to the player's wallet.
- * Without a configured service we keep the signed memento locally.
- */
-export async function mintMemento(m: Memento): Promise<MintResult> {
-  const kind = profile.walletKind;
-  const p = kind && provider(kind);
-  if (!p || !profile.wallet) return { ok: false, reason: 'no-wallet' };
-  try {
-    const hash = await sha256Hex(m.png);
-    const message = `Toi Estelygi\nTitle: ${m.title}\nStars: ${m.stars}\nDate: ${m.date}\nImage SHA-256: ${hash}`;
-    const res = await p.signMessage(new TextEncoder().encode(message), 'utf8');
-    const sig = res instanceof Uint8Array ? res : res.signature;
-    m.signature = toBase64(sig);
-    saveProfile();
-
-    const api = import.meta.env.VITE_MINT_API as string | undefined;
-    if (!api) return { ok: false, reason: 'no-service' };
-    const r = await fetch(api, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ owner: profile.wallet, message, signature: m.signature, image: m.png, metadata: mementoMetadata(m, profile.wallet) }),
-    });
-    if (!r.ok) return { ok: false, reason: 'error', detail: `HTTP ${r.status}` };
-    const { mint } = await r.json();
-    m.mint = mint;
-    saveProfile();
-    return { ok: true, mint };
-  } catch (e: any) {
-    return { ok: false, reason: 'error', detail: String(e?.message ?? e) };
-  }
 }

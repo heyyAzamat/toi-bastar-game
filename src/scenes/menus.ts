@@ -8,11 +8,14 @@ import { run, title as titleFor, unlockedHalls, interlude } from '../run';
 import { t, nm, nextLang } from '../i18n';
 import { profile, saveProfile, addMemento, download, type Memento } from '../storage';
 import {
-  connectWallet, disconnectWallet, mintMemento, mementoMetadata, shortAddr, hasWallet, isMobile, openInWallet,
+  connectWallet, disconnectWallet, shortAddr, hasWallet, isMobile, openInWallet,
 } from '../solana';
 import { fetchBoard, submitScore, type Entry } from '../leaderboard';
 import { askName } from '../modal';
+import { claimTenge, onchainTenge, tengeEnabled } from '../tenge';
 import { shareResult } from '../share';
+import { mintEstelygi, dataUrlBytes } from '../toi/nft';
+import { explorerAddr } from '../toi/chain';
 
 function frameBg() {
   rect(0, 0, 180, 320, C.maroon);
@@ -329,21 +332,27 @@ export class ResultScene extends Scene {
       this.status = t('needWallet');
       return;
     }
-    this.status = t('signing');
+    const m = this.memento;
     this.mintBtn.disabled = true;
-    const r = await mintMemento(this.memento);
+    const r = await mintEstelygi(dataUrlBytes(m.png), {
+      name: `Toi Estelygi: ${m.title}`,
+      description: `A ${m.stars}-star toi hosted by ${profile.name} in Toi Bastar!`,
+      attributes: [
+        { trait_type: 'Title', value: m.title },
+        { trait_type: 'Stars', value: m.stars },
+        { trait_type: 'Hall', value: hallName(this.d.hall) },
+        { trait_type: 'Date', value: m.date },
+      ],
+    }, (s) => { this.status = s === 'upload' ? t('uploading') : t('mintingNft'); });
     this.mintBtn.disabled = false;
     if (r.ok) {
-      this.status = t('minted', shortAddr(r.mint));
+      m.mint = r.asset;
+      saveProfile();
+      this.status = t('minted', shortAddr(r.asset));
       this.mintBtn.hidden = true;
       sfx('fanfare');
-    } else if (r.reason === 'no-service') {
-      this.status = t('mintOffline');
-      download(
-        'data:application/json,' + encodeURIComponent(JSON.stringify(mementoMetadata(this.memento, profile.wallet), null, 2)),
-        `toi-estelygi-${this.d.hall + 1}.json`,
-      );
-    } else this.status = r.reason === 'no-wallet' ? t('needWallet') : t('mintFailed');
+      window.open(explorerAddr(r.asset), '_blank', 'noopener');
+    } else this.status = r.reason === 'no-wallet' ? t('needWallet') : r.reason === 'rejected' ? t('rejected') : t('mintFailed');
   }
   update(dt: number) {
     this.t += dt;
@@ -534,10 +543,28 @@ export class BoardScene extends Scene {
 
 export class ProfileScene extends Scene {
   status = '';
+  onchain: number | null = null;
   enter() {
     this.status = '';
     this.build();
+    this.refreshBalance();
     playMusic('bipyl');
+  }
+  refreshBalance() {
+    this.onchain = null;
+    if (profile.wallet && tengeEnabled()) onchainTenge(profile.wallet).then((n) => { this.onchain = n; }).catch(() => {});
+  }
+  async claim() {
+    this.status = t('signing');
+    const r = await claimTenge();
+    if (r.ok) {
+      this.status = t('claimed', r.amount);
+      sfx('coin');
+      this.refreshBalance();
+    } else {
+      this.status = r.reason === 'limit' ? t('claimLimit') : r.reason === 'off' ? t('claimOff') : r.reason === 'rejected' ? t('rejected') : r.reason === 'nothing' ? t('notEnough') : t('sendFailed', r.detail ?? '');
+    }
+    this.build();
   }
   build() {
     const connected = !!profile.wallet;
@@ -549,7 +576,10 @@ export class ProfileScene extends Scene {
         if (n) { profile.name = n; saveProfile(); }
       }),
       ...(connected
-        ? [btn(20, 148, 140, 16, t('disconnect'), async () => { await disconnectWallet(); this.build(); })]
+        ? [
+          btn(20, 152, 68, 16, t('disconnect'), async () => { await disconnectWallet(); this.build(); }),
+          Object.assign(btn(92, 152, 68, 16, t('claim', Math.min(200, profile.coins)), () => this.claim(), true), { disabled: !tengeEnabled() || profile.coins < 1 }),
+        ]
         : deeplink
           ? [
             btn(20, 140, 140, 16, t('openPhantom'), () => openInWallet('phantom'), true),
@@ -572,6 +602,7 @@ export class ProfileScene extends Scene {
     try {
       const a = await connectWallet(kind);
       if (a) this.status = t('connected');
+      this.refreshBalance();
     } catch {
       this.status = t('rejected');
     }
@@ -597,7 +628,8 @@ export class ProfileScene extends Scene {
 
     textS(t('wallet'), 90, 121, C.gold, 1, 'c');
     if (profile.wallet) {
-      text(shortAddr(profile.wallet) + ' (' + (profile.walletKind ?? '') + ')', 90, 136, C.teal, 1, 'c');
+      text(shortAddr(profile.wallet) + ' (' + (profile.walletKind ?? '') + ')', 90, 131, C.teal, 1, 'c');
+      if (this.onchain !== null) text(t('onchain', this.onchain), 90, 141, C.gold, 1, 'c');
     } else if (isMobile() && !hasWallet()) {
       text(t('noWallet'), 90, 131, C.tan, 1, 'c');
     }

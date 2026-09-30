@@ -1,17 +1,27 @@
-// Toi Estelygi NFT for "My Toi" on devnet: image + metadata go to Arweave via Irys (paid in devnet SOL),
-// then a Metaplex Core asset is minted to the host. Everything is lazy-loaded.
+// Toi Estelygi NFTs on devnet (3-star game mementos and "My Toi" tables).
+// 1. The player's wallet pays Irys (devnet SOL) to put the PNG + metadata on Arweave.
+// 2. The server (api/estelygi) builds a Metaplex Core asset inside the Toi Estelygi collection and signs
+//    as collection authority; the player signs last as payer/owner and the game sends it to devnet.
+//    Without a configured collection, a standalone Core asset is minted instead.
+// Everything is lazy-loaded.
 import { activeProvider } from '../solana';
 import { profile } from '../storage';
 import { DEVNET } from './chain';
-import type { ToiInvite } from './link';
 
-export type NftResult = { ok: true; asset: string; sig: string } | { ok: false; reason: 'no-wallet' | 'error'; detail?: string };
+export interface EstelygiMeta {
+  name: string; // starts with "Toi Estelygi"
+  description: string;
+  attributes: { trait_type: string; value: string | number }[];
+}
 
-export async function mintToiNft(inv: ToiInvite, png: Uint8Array, guests: number, onStep: (s: 'upload' | 'mint') => void): Promise<NftResult> {
+export type NftResult = { ok: true; asset: string; sig: string; inCollection: boolean } | { ok: false; reason: 'no-wallet' | 'rejected' | 'error'; detail?: string };
+
+export async function mintEstelygi(png: Uint8Array, meta: EstelygiMeta, onStep: (s: 'upload' | 'mint') => void): Promise<NftResult> {
   const p = activeProvider();
   if (!p || !profile.wallet) return { ok: false, reason: 'no-wallet' };
+  const name = meta.name.slice(0, 32);
   try {
-    const [{ createUmi }, { mplCore, create }, { irysUploader }, { walletAdapterIdentity }, umiLib, { PublicKey }, { base58 }] = await Promise.all([
+    const [{ createUmi }, { mplCore, create }, { irysUploader }, { walletAdapterIdentity }, umiLib, web3, { base58 }] = await Promise.all([
       import('@metaplex-foundation/umi-bundle-defaults'),
       import('@metaplex-foundation/mpl-core'),
       import('@metaplex-foundation/umi-uploader-irys'),
@@ -22,7 +32,7 @@ export async function mintToiNft(inv: ToiInvite, png: Uint8Array, guests: number
     ]);
     // Injected providers mostly match the wallet-adapter shape; signMessage differs (Phantom returns { signature }).
     const adapter = {
-      publicKey: new PublicKey(profile.wallet),
+      publicKey: new web3.PublicKey(profile.wallet),
       signTransaction: (tx: any) => p.signTransaction(tx),
       signAllTransactions: p.signAllTransactions ? (txs: any[]) => p.signAllTransactions!(txs) : undefined,
       signMessage: async (m: Uint8Array) => {
@@ -36,27 +46,40 @@ export async function mintToiNft(inv: ToiInvite, png: Uint8Array, guests: number
       .use(walletAdapterIdentity(adapter as any));
 
     onStep('upload');
-    const file = umiLib.createGenericFile(png, 'toi-estelygi.png', { contentType: 'image/png' });
-    const [image] = await umi.uploader.upload([file]);
+    const [image] = await umi.uploader.upload([umiLib.createGenericFile(png, 'toi-estelygi.png', { contentType: 'image/png' })]);
     const uri = await umi.uploader.uploadJson({
-      name: `Toi Estelygi: ${inv.n}`.slice(0, 32),
-      symbol: 'TOI',
-      description: `${inv.n}, ${inv.d}. Hosted by ${inv.h} in Toi Bastar!`,
-      image,
-      attributes: [
-        { trait_type: 'Toi', value: inv.n },
-        { trait_type: 'Date', value: inv.d },
-        { trait_type: 'Host', value: inv.h },
-        { trait_type: 'Guests', value: guests },
-      ],
+      name, symbol: 'TOI', description: meta.description, image, attributes: meta.attributes,
       properties: { files: [{ uri: image, type: 'image/png' }], category: 'image' },
     });
 
     onStep('mint');
+    const r = await fetch('/api/estelygi', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ owner: profile.wallet, uri, name }),
+    }).catch(() => null);
+    if (r && r.ok) {
+      const { asset, tx } = await r.json();
+      const vtx = web3.VersionedTransaction.deserialize(Uint8Array.from(atob(tx), (c) => c.charCodeAt(0)));
+      let signed;
+      try {
+        signed = await p.signTransaction(vtx);
+      } catch (e: any) {
+        return { ok: false, reason: 'rejected', detail: String(e?.message ?? e) };
+      }
+      const conn = new web3.Connection(DEVNET, 'confirmed');
+      const sig = await conn.sendRawTransaction(signed.serialize());
+      const bh = await conn.getLatestBlockhash();
+      await conn.confirmTransaction({ signature: sig, ...bh }, 'confirmed');
+      return { ok: true, asset, sig, inCollection: true };
+    }
+    // No collection service: a standalone Core asset owned by the player.
     const asset = umiLib.generateSigner(umi);
-    const res = await create(umi, { asset, name: `Toi Estelygi: ${inv.n}`.slice(0, 32), uri }).sendAndConfirm(umi);
-    return { ok: true, asset: asset.publicKey.toString(), sig: base58.deserialize(res.signature)[0] };
+    const res = await create(umi, { asset, name, uri }).sendAndConfirm(umi);
+    return { ok: true, asset: asset.publicKey.toString(), sig: base58.deserialize(res.signature)[0], inCollection: false };
   } catch (e: any) {
     return { ok: false, reason: 'error', detail: String(e?.message ?? e).slice(0, 80) };
   }
 }
+
+export const dataUrlBytes = (dataUrl: string) => Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0));
