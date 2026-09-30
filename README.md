@@ -42,6 +42,25 @@ Dev-only URL params: `?wave=4` jumps straight into a hall (1-4), `?speed=4` fast
   **No mint service ships with this repo.** Without `VITE_MINT_API`, the signed memento is kept locally and the metadata JSON is downloaded.
 - Tenge is tracked off-chain in the local profile. Claiming it as an SPL token needs a server-side mint authority (not included).
 
+## Tutorial, Betashar, Bazaar, sharing
+- First **TOI BASTAR!** runs a guided lesson: 4 scripted guests, a pointing hand, azhe tips. Wrong seats are refused without penalty. **?** on the start screen replays it.
+- Between halls, **Shashu** (tap falling sweets) alternates with **Betashar**, where the bride bows to 12 relatives on the beat. Taps are judged against the audio clock (±0.09 s perfect, ±0.18 s good), and the veil lifts at the end.
+- **Bazaar:** tenge buys tablecloths, feast dishes (baursak, kazy-karta), the UI ornament colour and your look (used as your avatar in My Toi).
+- **Share:** result and final screens make a pixel card (with the table snapshot) and send it through the phone's share sheet. On desktop the card is downloaded and Telegram's share page opens.
+- Voice: only the azhe's "Oibai!" (macOS Kazakh voice *Aru*, `public/voice/`). The other sounds are synthesized.
+- Desktop/laptop: the portrait game sits in the middle of a night-steppe toi (yurts, garlands, fireworks, campfire, dancers). Phones keep the plain frame and respect safe areas.
+
+## Solana setup (devnet)
+1. `node scripts/setup-solana.mjs`. This creates `.secrets/authority.json`. It needs about 0.3 devnet SOL on that address; get it at https://faucet.solana.com and re-run.
+   It then creates the **TENGE** token (Token-2022, 0 decimals, on-chain name/symbol/icon) and the **Toi Estelygi** Metaplex Core collection, and writes `.env.local`.
+2. `npm run dev`: the Vite dev server also serves `api/*` (claims, NFT co-signing, leaderboard) with the secrets from `.env.local`.
+3. On Vercel, set `TOI_AUTHORITY_SECRET`, `TENGE_MINT`, `VITE_TENGE_MINT`, `ESTELYGI_COLLECTION` and `VITE_ESTELYGI_COLLECTION` (+ `KV_REST_API_*` for rate limits and leaderboards).
+
+How it fits together:
+- **TENGE:** tenge earned in Shashu/Betashar is kept locally until **CLAIM**. The wallet signs `Toi Bastar: claim N TENGE to <wallet> at <ts>`, and `api/tenge-claim` verifies it, blocks replays, caps it (200 per claim, 300 per wallet per day) and mints to the player's token account. Earnings are counted client-side, which is why the caps exist.
+- **Shashu in My Toi** is a real `transferChecked` of TENGE to the host's token account. The guestbook reads the amounts from the chain. Without a configured mint it falls back to devnet SOL.
+- **Toi Estelygi NFTs** (3-star mementos and My Toi tables): the player's wallet pays Irys to store PNG + metadata on Arweave. `api/estelygi` builds a Core `create` inside the collection and signs as collection authority, and the player's wallet signs last as payer/owner. Without a collection it mints a standalone Core asset.
+
 ## My Toi (social mode, Solana devnet)
 - **Host:** Profile -> MY TOI -> CREATE A TOI. The host enters a name and date. The invite link carries the toi (id, name, date, host name, host wallet) in `?toi=`, so no server is needed. The host can **COPY LINK** or share to **TELEGRAM**.
 - **Guest:** the link opens a pixel invitation card. The guest picks an avatar and a free seat, chooses shashu (0/1/5/10/25 tenge, 1 tenge = 0.001 devnet SOL) and writes a wish (max 140 characters), then signs **one** transaction:

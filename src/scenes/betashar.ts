@@ -156,7 +156,7 @@ export class BetasharScene extends Scene {
       // The relative being greeted.
       img(guestSprite(kind, idx % 2), 74, 40, 2);
       textS(`${t('salemTo')} ${nm(who)}!`, 90, 76, C.cream, 1, 'c');
-      text(`${Math.min(idx + 1, RELATIVES.length)}/${RELATIVES.length}`, 166, 27, C.gold, 1, 'r');
+      text(`${Math.min(idx + 1, RELATIVES.length)}/${RELATIVES.length}`, 90, 86, C.gold, 1, 'c');
     }
 
     this.drawBride();
