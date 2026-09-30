@@ -11,6 +11,9 @@ export const C = {
   green: '#5E8C3A',
 } as const;
 
+/** Cosmetic theme (the bazaar can change the ornament colour). */
+export const theme = { orn: '#E8B64C' as string };
+
 export const W = 180;
 export const H = 320;
 
@@ -167,7 +170,7 @@ export function img(cv: CanvasImageSource, x: number, y: number, scale = 1, w?: 
 // Koshkar muiz (ram's horn) tile, 8x5.
 const ORN = ['.gg..gg.', 'g..gg..g', 'g.g..g.g', '.g.gg.g.', '...gg...'];
 
-export function band(x: number, y: number, w: number, fg: string = C.gold, bg: string = C.maroon) {
+export function band(x: number, y: number, w: number, fg: string = theme.orn, bg: string = C.maroon) {
   rect(x, y, w, 5, bg);
   ctx.fillStyle = fg;
   for (let tx = 0; tx < w; tx += 8) {
@@ -180,7 +183,7 @@ export function band(x: number, y: number, w: number, fg: string = C.gold, bg: s
 }
 
 /** Vertical ornament band (the tile rotated). */
-export function vband(x: number, y: number, h: number, fg: string = C.gold, bg: string = C.maroon) {
+export function vband(x: number, y: number, h: number, fg: string = theme.orn, bg: string = C.maroon) {
   rect(x, y, 5, h, bg);
   ctx.fillStyle = fg;
   for (let ty = 0; ty < h; ty += 8) {
@@ -198,8 +201,8 @@ export function panel(x: number, y: number, w: number, h: number, bg: string = C
   rect(x, y, w, h, bg);
   box(x, y, w, h, C.gold);
   box(x + 2, y + 7, w - 4, h - 14, C.gold);
-  band(x + 1, y + 1, w - 2, C.gold, C.maroon);
-  band(x + 1, y + h - 6, w - 2, C.gold, C.maroon);
+  band(x + 1, y + 1, w - 2);
+  band(x + 1, y + h - 6, w - 2);
 }
 
 export function bar(x: number, y: number, w: number, h: number, frac: number, fg: string, bg: string = C.maroon) {

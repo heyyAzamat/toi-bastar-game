@@ -2,6 +2,8 @@
 import { C, canvas, setCtx, rect, box, band, vband, text, textS, ctx } from './gfx';
 import { rng, type WaveDef } from './waves';
 import { t } from './i18n';
+import { profile } from './storage';
+import { TABLECLOTHS } from './shop';
 
 export interface Seat {
   i: number;
@@ -136,7 +138,7 @@ function floor(w: WaveDef) {
   }
 }
 
-function food(L: Layout, seed: number) {
+function food(L: Layout, seed: number, feast: string) {
   const r = rng(seed);
   const x0 = TABLE_X, w = TABLE_W;
   for (let row = 0; row < L.rows; row++) {
@@ -148,6 +150,16 @@ function food(L: Layout, seed: number) {
     }
     const kind = Math.floor(r() * 3);
     const mx = x0 + w / 2;
+    // A generous feast piles extra baursak by every seat; kazy-karta adds sliced horse sausage.
+    if (feast !== 'plain') {
+      for (const bx of [x0 + 9, x0 + w - 13]) for (let i = 0; i < 3; i++) rect(bx + (i % 2) * 2, cy - 2 + i, 2, 1, i % 2 ? C.gold : C.tan);
+    }
+    if (feast === 'kazy' && row % 2 === 0) {
+      for (let i = 0; i < 3; i++) {
+        rect(mx - 8 + i * 6, cy + 2, 4, 3, C.brown);
+        rect(mx - 7 + i * 6, cy + 3, 2, 1, C.cream);
+      }
+    }
     if (kind === 0 && L.spacing >= 14) {
       // Beshbarmak platter.
       rect(mx - 6, cy - 3, 12, 6, C.cream);
@@ -189,10 +201,11 @@ export function renderBackground(w: WaveDef, L: Layout, seed: number): HTMLCanva
 
   // Dastarkhan.
   rect(TABLE_X + 1, tt - 3, TABLE_W, L.tableH + 6, C.brown);
-  rect(TABLE_X, tt - 4, TABLE_W, L.tableH + 6, C.cream);
-  box(TABLE_X, tt - 4, TABLE_W, L.tableH + 6, C.gold);
-  box(TABLE_X + 2, tt - 2, TABLE_W - 4, L.tableH + 2, C.tan);
-  food(L, seed);
+  const [cloth, trim, inner] = TABLECLOTHS[profile.equip?.table] ?? TABLECLOTHS.cream;
+  rect(TABLE_X, tt - 4, TABLE_W, L.tableH + 6, cloth);
+  box(TABLE_X, tt - 4, TABLE_W, L.tableH + 6, trim);
+  box(TABLE_X + 2, tt - 2, TABLE_W - 4, L.tableH + 2, inner);
+  food(L, seed, profile.equip?.feast ?? 'plain');
 
   // Cushions (korpe).
   for (const s of L.seats) {

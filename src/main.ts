@@ -9,6 +9,8 @@ import { restoreWallet } from './solana';
 import { input, run } from './run';
 import { HostScene, GuestbookScene, InviteScene } from './scenes/toi';
 import { BetasharScene } from './scenes/betashar';
+import { ShopScene } from './scenes/shop';
+import { applyCosmetics } from './shop';
 import { readInvite } from './toi/link';
 
 const cv = document.getElementById('c') as HTMLCanvasElement;
@@ -87,6 +89,7 @@ register('host', new HostScene());
 register('guestbook', new GuestbookScene());
 register('invite', new InviteScene());
 register('betashar', new BetasharScene());
+register('shop', new ShopScene());
 
 // Dev only: ?speed=N fast-forwards time; window.__scene exposes the active scene.
 const speed = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('speed')) || 1 : 1;
@@ -113,6 +116,7 @@ async function boot() {
     await installFakeWallet();
   }
   setMuted(profile.muted);
+  applyCosmetics();
   restoreWallet();
   const devWave = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('wave')) : 0;
   const devScene = import.meta.env.DEV ? new URLSearchParams(location.search).get('scene') : null;

@@ -7,6 +7,7 @@ export interface ToiInvite {
   d: string; // YYYY-MM-DD
   h: string; // host name
   w: string; // host wallet (base58)
+  a?: string; // host avatar, e.g. 'kuda0'
 }
 
 const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -22,9 +23,9 @@ function fromB64Url(s: string) {
   return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
 }
 
-export function makeInvite(name: string, date: string, host: string, wallet: string): ToiInvite {
+export function makeInvite(name: string, date: string, host: string, wallet: string, avatar?: string): ToiInvite {
   const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
-  return { v: 1, id, n: name.slice(0, 40), d: date, h: host.slice(0, 12), w: wallet };
+  return { v: 1, id, n: name.slice(0, 40), d: date, h: host.slice(0, 12), w: wallet, a: avatar };
 }
 
 export function inviteUrl(inv: ToiInvite) {
@@ -37,7 +38,8 @@ export function telegramUrl(inv: ToiInvite, text: string) {
 
 function valid(x: any): x is ToiInvite {
   return x && x.v === 1 && /^[a-z0-9]{8}$/.test(x.id) && typeof x.n === 'string' && x.n.length <= 40
-    && /^\d{4}-\d{2}-\d{2}$/.test(x.d) && typeof x.h === 'string' && x.h.length <= 12 && B58.test(x.w);
+    && /^\d{4}-\d{2}-\d{2}$/.test(x.d) && typeof x.h === 'string' && x.h.length <= 12 && B58.test(x.w)
+    && (x.a === undefined || /^[a-z]{3,10}[01]$/.test(x.a));
 }
 
 /** The invite in the current URL: an invite object, 'bad' for a broken link, or null. */

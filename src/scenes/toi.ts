@@ -100,7 +100,7 @@ export class HostScene extends Scene {
     const week = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const date = (await askText({ type: 'date', value: week })) ?? week;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !profile.wallet) return;
-    const inv = makeInvite(name, date, profile.name, profile.wallet);
+    const inv = makeInvite(name, date, profile.name, profile.wallet, profile.equip.avatar);
     profile.hosted.push(inv);
     saveProfile();
     sfx('fanfare');
@@ -280,6 +280,7 @@ export class InviteScene extends Scene {
     this.table = new ToiTable(inv);
     this.step = 'card';
     this.mySeat = -1;
+    this.avatar = profile.equip.avatar;
     this.tenge = 0;
     this.wish = '';
     this.loaded = false;

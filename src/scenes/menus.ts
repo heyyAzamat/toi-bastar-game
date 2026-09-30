@@ -12,6 +12,7 @@ import {
 } from '../solana';
 import { fetchBoard, submitScore, type Entry } from '../leaderboard';
 import { askName } from '../modal';
+import { shareResult } from '../share';
 
 function frameBg() {
   rect(0, 0, 180, 320, C.maroon);
@@ -94,7 +95,8 @@ export class StartScene extends Scene {
       btn(20, 166, 140, 18, t('daily'), () => { run.reset('daily'); go('hall'); }),
       btn(20, 188, 68, 16, t('ranking'), () => go('board')),
       btn(92, 188, 68, 16, t('album'), () => go('album')),
-      btn(20, 208, 140, 16, t('profile'), () => go('profile')),
+      btn(20, 208, 68, 16, t('profile'), () => go('profile')),
+      btn(92, 208, 68, 16, t('bazaar'), () => go('shop')),
       btn(20, 230, 68, 14, t(profile.muted ? 'soundOff' : 'soundOn'), () => {
         profile.muted = !profile.muted;
         setMuted(profile.muted);
@@ -315,7 +317,7 @@ export class ResultScene extends Scene {
       : [
         btn(20, 222, 140, 20, last ? t('finish') : t(interlude(run.wave)), () => go(last ? 'final' : interlude(run.wave)), true),
         this.mintBtn,
-        btn(20, 266, 68, 16, 'PNG', () => this.memento && download(this.memento.png, `toi-estelygi-${d.hall + 1}.png`)),
+        btn(20, 266, 68, 16, t('share'), () => shareResult({ head: `${t('toiN', d.wave)}: ${hallName(d.hall)}`, title: d.title, stars: d.stars, score: d.score, memento: d.memento })),
         btn(92, 266, 68, 16, t('retry'), () => go('hall')),
       ];
     playMusic('menu');
@@ -428,7 +430,8 @@ export class FinalScene extends Scene {
     saveProfile();
     this.buttons = [
       btn(20, 232, 140, 20, t('ranking'), () => go('board', run.mode === 'daily' ? 'daily' : 'all'), true),
-      btn(20, 258, 140, 16, t('newToi'), () => { run.reset(run.mode); go('hall'); }),
+      btn(20, 258, 68, 16, t('newToi'), () => { run.reset(run.mode === 'daily' ? 'daily' : 'campaign'); go('hall'); }),
+      btn(92, 258, 68, 16, t('share'), () => shareResult({ head: run.mode === 'daily' ? t('daily') : t('totalScore'), title: titleFor(Math.max(1, Math.round(this.starSum / run.halls.length))), stars: Math.round(this.starSum / run.halls.length), score: this.total, memento: profile.mementos.at(-1)?.png })),
       btn(20, 280, 140, 16, t('menu'), () => go('start')),
     ];
     this.confetti = new Confetti();

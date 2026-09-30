@@ -44,7 +44,7 @@ export class ToiTable {
   draw(seats: Map<number, Wish>, clock: number, mine?: { seat: number; avatar: string; hop: number }) {
     ctx.drawImage(this.bg, 0, 0);
     const hostY = this.L.tableTop - 20;
-    img(guestSprite('kuda', 0), 82, hostY - (Math.floor(clock * 2) % 2));
+    img(avatarSprite(this.inv.a ?? 'kuda0'), 82, hostY - (Math.floor(clock * 2) % 2));
     for (const s of this.L.seats) {
       const w = seats.get(s.i);
       if (w) img(avatarSprite(w.avatar), s.x, s.y - (Math.floor(clock * 2 + s.i * 0.37) % 4 === 0 ? 1 : 0));
