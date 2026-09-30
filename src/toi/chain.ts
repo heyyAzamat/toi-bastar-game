@@ -42,7 +42,14 @@ function parseMemo(raw: string) {
   return { id, seat: Number(seat), tenge: Number(tenge), avatar, name, wish: rest.join('|') };
 }
 
+/** spl-token and parts of Metaplex expect Node's global Buffer; browsers don't have one. */
+export async function ensureBuffer() {
+  const g = globalThis as any;
+  if (!g.Buffer) g.Buffer = (await import('buffer')).Buffer;
+}
+
 async function web3() {
+  await ensureBuffer();
   return import('@solana/web3.js');
 }
 

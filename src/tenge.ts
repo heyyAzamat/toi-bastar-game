@@ -14,6 +14,8 @@ const claimMessage = (wallet: string, amount: number, ts: number) => `Toi Bastar
 
 export async function onchainTenge(wallet: string): Promise<number> {
   if (!TENGE_MINT) return 0;
+  const g = globalThis as any;
+  if (!g.Buffer) g.Buffer = (await import('buffer')).Buffer;
   const { Connection, PublicKey } = await import('@solana/web3.js');
   const conn = new Connection(DEVNET, 'confirmed');
   const res = await conn.getParsedTokenAccountsByOwner(new PublicKey(wallet), { mint: new PublicKey(TENGE_MINT) });

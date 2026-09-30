@@ -320,6 +320,7 @@ export class InviteScene extends Scene {
       this.buttons.push(btn(20, 150, 140, 16, t('writeWish'), async () => {
         const w = await askText({ type: 'area', max: 140, value: this.wish, placeholder: t('wishQ') });
         if (w !== null) this.wish = w;
+        this.build(); // enables SEND once there is a wish
       }));
       this.buttons.push(btn(122, 62, 44, 14, t('edit'), async () => {
         const n = await askText({ value: profile.name, max: 12, upper: true });

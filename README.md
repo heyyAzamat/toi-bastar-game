@@ -59,7 +59,13 @@ Dev-only URL params: `?wave=4` jumps straight into a hall (1-4), `?speed=4` fast
 How it fits together:
 - **TENGE:** tenge earned in Shashu/Betashar is kept locally until **CLAIM**. The wallet signs `Toi Bastar: claim N TENGE to <wallet> at <ts>`, and `api/tenge-claim` verifies it, blocks replays, caps it (200 per claim, 300 per wallet per day) and mints to the player's token account. Earnings are counted client-side, which is why the caps exist.
 - **Shashu in My Toi** is a real `transferChecked` of TENGE to the host's token account. The guestbook reads the amounts from the chain. Without a configured mint it falls back to devnet SOL.
-- **Toi Estelygi NFTs** (3-star mementos and My Toi tables): the player's wallet pays Irys to store PNG + metadata on Arweave. `api/estelygi` builds a Core `create` inside the collection and signs as collection authority, and the player's wallet signs last as payer/owner. Without a collection it mints a standalone Core asset.
+- **Toi Estelygi NFTs** (3-star mementos and My Toi tables): the game sends the PNG + metadata to `api/estelygi`. The server stores them on Arweave via Irys (paid by the authority), builds a Core `create` inside the collection and signs as collection authority. The player's wallet signs once as payer/owner. The browser only loads web3.js.
+- Devnet note: Irys **devnet** uploads are temporary (kept for weeks, not forever). For mainnet, point `SOLANA_RPC` at mainnet and the uploader switches to the permanent Irys node.
+- Verified end to end on devnet (2026-09-30):
+  - claim: 60 TENGE minted to a guest wallet;
+  - wish: `transferChecked` of 10 TENGE to the host + memo;
+  - guestbook: read back from chain;
+  - NFT `Cym2v589…iMSM` minted into collection `CrXpxMRY…THxC`, owned by the host.
 
 ## My Toi (social mode, Solana devnet)
 - **Host:** Profile -> MY TOI -> CREATE A TOI. The host enters a name and date. The invite link carries the toi (id, name, date, host name, host wallet) in `?toi=`, so no server is needed. The host can **COPY LINK** or share to **TELEGRAM**.

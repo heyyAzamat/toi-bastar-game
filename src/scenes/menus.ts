@@ -352,7 +352,7 @@ export class ResultScene extends Scene {
       this.mintBtn.hidden = true;
       sfx('fanfare');
       window.open(explorerAddr(r.asset), '_blank', 'noopener');
-    } else this.status = r.reason === 'no-wallet' ? t('needWallet') : r.reason === 'rejected' ? t('rejected') : t('mintFailed');
+    } else this.status = r.reason === 'no-wallet' ? t('needWallet') : r.reason === 'rejected' ? t('rejected') : r.reason === 'limit' ? t('claimLimit') : r.reason === 'off' ? t('mintOffline') : t('mintFailed');
   }
   update(dt: number) {
     this.t += dt;
