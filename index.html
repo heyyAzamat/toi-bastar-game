@@ -7,16 +7,20 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Toi Bastar!</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #3B2418; overflow: hidden; overscroll-behavior: none; }
-    body { display: flex; align-items: center; justify-content: center; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-    canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
-    #modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(59,36,24,.7); }
+    :root { --sat: env(safe-area-inset-top); --sar: env(safe-area-inset-right); --sab: env(safe-area-inset-bottom); --sal: env(safe-area-inset-left); }
+    html, body { margin: 0; height: 100%; height: 100dvh; background: #3B2418; overflow: hidden; overscroll-behavior: none; }
+    body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    canvas { display: block; position: fixed; image-rendering: pixelated; image-rendering: crisp-edges; }
+    #c { touch-action: none; z-index: 1; }
+    #bg { left: 0; top: 0; z-index: 0; pointer-events: none; }
+    #modal { z-index: 10; position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(59,36,24,.7); }
     #modal form { background: #7A1E2B; border: 3px solid #E8B64C; padding: 16px; display: flex; gap: 8px; font: 16px monospace; max-width: 92vw; box-sizing: border-box; }
     #modal input, #modal textarea { font: 16px monospace; background: #F4E9D3; color: #3B2418; border: 2px solid #3B2418; padding: 6px; width: 14em; max-width: 60vw; text-transform: uppercase; resize: none; }
     #modal button { font: bold 16px monospace; background: #E8B64C; color: #3B2418; border: 2px solid #3B2418; padding: 6px 12px; }
   </style>
 </head>
 <body>
+  <canvas id="bg"></canvas>
   <canvas id="c" width="180" height="320"></canvas>
   <div id="modal"><form><button>OK</button></form></div>
   <script type="module" src="/src/main.ts"></script>

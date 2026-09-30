@@ -4,7 +4,7 @@ import { Scene, btn, go, type Btn } from '../ui';
 import { sfx, playMusic, setMuted, applause } from '../audio';
 import { guestSprite, STAR, STAR_OFF, COIN, BIGCOIN, CANDIES, type Kind } from '../sprites';
 import { WAVES, dailyChallenge } from '../waves';
-import { run, title as titleFor, unlockedHalls } from '../run';
+import { run, title as titleFor, unlockedHalls, interlude } from '../run';
 import { t, nm, nextLang } from '../i18n';
 import { profile, saveProfile, addMemento, download, type Memento } from '../storage';
 import {
@@ -89,7 +89,8 @@ export class StartScene extends Scene {
   }
   build() {
     this.buttons = [
-      btn(20, 140, 140, 22, t('toiBastar'), () => { run.reset('campaign'); go('hall'); }, true),
+      btn(20, 140, 140, 22, t('toiBastar'), () => { run.reset(profile.tutorialDone ? 'campaign' : 'tutorial'); go('hall'); }, true),
+      btn(161, 8, 14, 14, '?', () => { run.reset('tutorial'); go('hall'); }),
       btn(20, 166, 140, 18, t('daily'), () => { run.reset('daily'); go('hall'); }),
       btn(20, 188, 68, 16, t('ranking'), () => go('board')),
       btn(92, 188, 68, 16, t('album'), () => go('album')),
@@ -312,7 +313,7 @@ export class ResultScene extends Scene {
     this.buttons = d.stars === 0
       ? [btn(20, 222, 140, 20, t('retry'), () => go('hall'), true), btn(20, 266, 140, 16, t('menu'), () => go('start'))]
       : [
-        btn(20, 222, 140, 20, last ? t('finish') : t('shashu'), () => go(last ? 'final' : 'shashu'), true),
+        btn(20, 222, 140, 20, last ? t('finish') : t(interlude(run.wave)), () => go(last ? 'final' : interlude(run.wave)), true),
         this.mintBtn,
         btn(20, 266, 68, 16, 'PNG', () => this.memento && download(this.memento.png, `toi-estelygi-${d.hall + 1}.png`)),
         btn(92, 266, 68, 16, t('retry'), () => go('hall')),

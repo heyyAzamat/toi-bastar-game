@@ -14,7 +14,7 @@ type Song = keyof typeof SONGS;
 interface SongPlayer { el: HTMLAudioElement; gain: GainNode; pause?: number }
 const players: Partial<Record<Song, SongPlayer>> = {};
 
-export type Track = 'menu' | 'game' | Song | 'none';
+export type Track = 'menu' | 'game' | 'betashar' | Song | 'none';
 const isSong = (t: Track): t is Song => t in SONGS;
 let track: Track = 'none';
 let bpm = 120;
@@ -41,6 +41,7 @@ export function unlockAudio() {
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
   if (ac.state === 'suspended') ac.resume();
+  loadVoices();
   // Retry on every gesture: a play() attempted outside a gesture (or on a gesture iOS
   // doesn't count, like pointerdown) is rejected and would otherwise stay silent.
   if (isSong(track)) {
@@ -124,7 +125,10 @@ function playStep(s: number, t: number) {
   // Drone string: tonic on the beat, the fourth on the off-beat ("dum-da").
   if (i % 4 === 0) pluck(ROOT / 2, t, dur * 1.4, 0.13, 'triangle', musicBus);
   if (i % 4 === 2) pluck((ROOT / 2) * 4 / 3, t, dur, 0.08, 'triangle', musicBus);
-  if (track !== 'menu' && (i === 0 || i === 6 || i === 8 || i === 11)) thump(t, 0.5);
+  if (track === 'betashar') {
+    // Steady quarter-note drum so the bows can be timed by ear.
+    if (i % 4 === 0) thump(t, i === 0 ? 0.7 : 0.45);
+  } else if (track !== 'menu' && (i === 0 || i === 6 || i === 8 || i === 11)) thump(t, 0.5);
 }
 
 function tick() {
@@ -136,9 +140,12 @@ function tick() {
   }
 }
 
+let trackStart = 0;
+
 function startScheduler() {
   if (!ac) return;
   nextTime = ac.currentTime + 0.05;
+  trackStart = nextTime;
   if (timer === undefined) timer = window.setInterval(tick, 25);
 }
 
@@ -190,11 +197,18 @@ export function playMusic(t: Track, from?: number) {
     return;
   }
   step = 0;
-  bpm = t === 'menu' ? 112 : 140;
+  bpm = t === 'menu' ? 112 : t === 'betashar' ? BETASHAR_BPM : 140;
   if (t === 'none') {
     clearInterval(timer);
     timer = undefined;
   } else startScheduler();
+}
+
+export const BETASHAR_BPM = 100;
+
+/** Audio-clock time (s) and when the current chiptune's step 0 played; null before the first tap. */
+export function musicClock(): { now: number; start: number } | null {
+  return ac && timer !== undefined ? { now: ac.currentTime, start: trackStart } : null;
 }
 
 /** 0 = relaxed, 1 = hurry, 2 = panic. Speeds up the toi song (or the dombra chiptune). */
@@ -315,9 +329,47 @@ export function applause(seconds = 2.5) {
   }
 }
 
+// Voice clips (Kazakh TTS in public/voice), decoded after the first tap.
+// Only the azhe's "Oibai!" on mistakes is voiced.
+const VOICES: Record<string, string[]> = { oibai: ['oibai1', 'oibai2'] };
+const clips = new Map<string, AudioBuffer>();
+let voiceBusy = 0;
+let voicesLoading = false;
+
+function loadVoices() {
+  if (!ac || voicesLoading) return;
+  voicesLoading = true;
+  const ctx = ac;
+  for (const file of Object.values(VOICES).flat()) {
+    fetch(`${import.meta.env.BASE_URL}voice/${file}.mp3`)
+      .then((r) => r.arrayBuffer())
+      .then((b) => ctx.decodeAudioData(b))
+      .then((buf) => clips.set(file, buf))
+      .catch(() => {});
+  }
+}
+
+/** Speak a line. Lines never overlap: a new one is dropped while another is still playing (unless forced). */
+export function voice(name: string, force = false): boolean {
+  if (!ac) return false;
+  const now = ac.currentTime;
+  if (!force && now < voiceBusy) return false;
+  const files = (VOICES[name] ?? []).filter((f) => clips.has(f));
+  if (!files.length) return false;
+  const buf = clips.get(files[Math.floor(Math.random() * files.length)])!;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = 1.1;
+  src.connect(g).connect(sfxBus);
+  src.start(now);
+  voiceBusy = now + buf.duration;
+  return true;
+}
+
 export function sfx(name: keyof typeof SFX | string) {
   if (!ac) return;
-  if (name === 'oibai') return oibai();
+  if (name === 'oibai') return void (voice('oibai') || oibai());
   if (name === 'coin') return clink();
   if (name === 'applause') return applause();
   const t = ac.currentTime;

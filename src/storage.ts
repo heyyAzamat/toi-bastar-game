@@ -29,6 +29,9 @@ export interface Profile {
   seenRules: number[]; // rules the azhe has already explained
   daily: { key: string; best: number } | null;
   hosted: ToiInvite[]; // "My Toi" invites this player created
+  tutorialDone: boolean;
+  owned: string[]; // shop items, e.g. 'table:teal'
+  equip: { table: string; feast: string; orn: string; avatar: string };
 }
 
 const KEY = 'toi-bastar-profile';
@@ -40,7 +43,8 @@ function newId() {
 function load(): Profile {
   const base: Profile = {
     id: newId(), name: 'TOISHY', coins: 0, best: 0, stars: 0, games: 0,
-    wallet: null, walletKind: null, mementos: [], muted: false, lang: '', rep: 0, album: {}, seenRules: [], daily: null, hosted: [],
+    wallet: null, walletKind: null, mementos: [], muted: false, lang: '', rep: 0, album: {}, seenRules: [], daily: null, hosted: [], tutorialDone: false, owned: [],
+    equip: { table: 'cream', feast: 'plain', orn: 'gold', avatar: 'zhigit0' },
   };
   try {
     const raw = localStorage.getItem(KEY);
@@ -48,6 +52,8 @@ function load(): Profile {
       const p = { ...base, ...JSON.parse(raw) };
       // Players from before reputation existed start from their best score.
       if (!p.rep && p.best) p.rep = p.best;
+      // Anyone who already played skips the tutorial.
+      if (p.games && raw.indexOf('tutorialDone') < 0) p.tutorialDone = true;
       return p;
     }
   } catch {}

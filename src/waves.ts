@@ -32,6 +32,21 @@ export const WAVES: WaveDef[] = [
   { idx: 3, hall: 'saray', seats: 24, rules: [1, 2, 3, 4, 5, 6, 7, 8], honorRows: 4, childRows: 4, window: 56, feuds: 2, families: 2, cousin: true, akim: true, patMul: 0.85, rep: 2200 },
 ];
 
+/** The guided first round: 4 seats, no clock, the azhe shows every move. */
+export const TUTORIAL: WaveDef = { idx: -1, hall: 'yurt', seats: 4, rules: [1, 2], honorRows: 1, childRows: 0, window: 0, feuds: 0, families: 0, cousin: false, akim: false, patMul: 1, rep: 0 };
+
+/** Scripted tutorial guests with the seat each one should take (seat = row * 2 + side). */
+export function tutorialGuests(): { guests: Guest[]; targets: number[] } {
+  const mk = (id: number, kind: Kind, side: Side, name: string): Guest => ({
+    id, kind, side, name, sprite: guestSprite(kind, 0), maxP: 999, patience: 999, arriveAt: id === 0 ? 0.6 : Infinity,
+    state: 'pending', seat: -1, rival: -1, feud: 0, pair: 0, family: 0, runDelay: 0, seatedAt: 0, happyT: 0, viol: [], rewarded: false,
+  });
+  return {
+    guests: [mk(0, 'aksakal', 'groom', 'ОРАЗ АТА'), mk(1, 'kelin', 'bride', 'ДАНА'), mk(2, 'azhe', 'bride', 'РАУШАН ӘЖЕ'), mk(3, 'zhigit', 'groom', 'АРМАН')],
+    targets: [0, 3, 1, 2],
+  };
+}
+
 export const WAVE_TIME = 75;
 
 export interface Guest {

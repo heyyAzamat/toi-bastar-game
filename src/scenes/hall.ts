@@ -3,9 +3,9 @@ import { C, rect, box, text, textS, textO, band, bar, panel, img, wrap, canvas, 
 import { Scene, btn, go, type Btn } from '../ui';
 import { sfx, playMusic, setIntensity, applause } from '../audio';
 import {
-  RING, BOLT, HOUSE, STOOL, SMILE, TICK, CROSS, FAMILY, ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, guestSprite,
+  HAND, RING, BOLT, HOUSE, STOOL, SMILE, TICK, CROSS, FAMILY, ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, guestSprite,
 } from '../sprites';
-import { WAVE_TIME, makeGuests, isElder, isKuda, isHonored, type Guest, type WaveDef } from '../waves';
+import { WAVE_TIME, makeGuests, tutorialGuests, isElder, isKuda, isHonored, type Guest, type WaveDef } from '../waves';
 import { layout, renderBackground, stoolSeat, type Layout } from '../hall';
 import { run, title as titleFor, input } from '../run';
 import { t, nm } from '../i18n';
@@ -24,7 +24,7 @@ interface Drag { g: Guest; from: number; x: number; y: number; sx: number; sy: n
 /** A guest crossing the hall on foot: offended ones leaving, kids running off. */
 interface Walker { sprite: HTMLCanvasElement; x0: number; y0: number; x1: number; y1: number; t: number; dur: number; hm: boolean; hop: number }
 
-type Phase = 'intro' | 'play' | 'rules' | 'asaba' | 'fail' | 'done';
+type Phase = 'intro' | 'play' | 'rules' | 'asaba' | 'fail' | 'done' | 'tutdone';
 
 export class HallScene extends Scene {
   w!: WaveDef;
@@ -57,6 +57,8 @@ export class HallScene extends Scene {
   shot: HTMLCanvasElement | null = null;
   pairBonus = new Set<number>();
   hints = new Map<number, boolean>(); // seat -> ok for the focused guest
+  tutTargets: number[] = []; // tutorial: the seat each scripted guest should take
+  tutLine = '';
   startBtn!: Btn;
   rulesBtn!: Btn;
   closeBtn!: Btn;
@@ -66,7 +68,13 @@ export class HallScene extends Scene {
     this.L = layout(this.w);
     const seed = run.seed + run.wave * 7919;
     this.bg = renderBackground(this.w, this.L, seed);
-    this.guests = makeGuests(this.w, seed);
+    const tut = run.mode === 'tutorial';
+    if (tut) {
+      const script = tutorialGuests();
+      this.guests = script.guests;
+      this.tutTargets = script.targets;
+      this.tutLine = t('tut1');
+    } else this.guests = makeGuests(this.w, seed);
     this.occ = this.L.seats.map(() => -1);
     this.queue = [];
     this.outside = [];
@@ -89,11 +97,15 @@ export class HallScene extends Scene {
     this.phase = 'intro';
 
     // The azhe explains every rule this player hasn't seen yet, one line at a time.
-    const fresh = this.w.rules.filter((r) => !profile.seenRules.includes(r));
-    this.azheQueue = fresh.map((r) => t('rule' + r));
-    if (!profile.seenRules.length) this.azheQueue.push(t('howTo'));
-    profile.seenRules.push(...fresh);
-    saveProfile();
+    if (tut) {
+      this.azheQueue = [t('tut0')];
+    } else {
+      const fresh = this.w.rules.filter((r) => !profile.seenRules.includes(r));
+      this.azheQueue = fresh.map((r) => t('rule' + r));
+      if (!profile.seenRules.length) this.azheQueue.push(t('howTo'));
+      profile.seenRules.push(...fresh);
+      saveProfile();
+    }
 
     this.startBtn = btn(30, 232, 120, 18, t('toiBastar'), () => this.begin(), true);
     this.closeBtn = btn(40, 232, 100, 18, t('ok'), () => { this.phase = 'play'; this.syncButtons(); }, true);
@@ -238,6 +250,7 @@ export class HallScene extends Scene {
       this.burst(cx, s.y + 8, 12, [C.gold, C.cream, C.green]);
       sfx('good');
       this.kudaBonus(g);
+      if (run.mode === 'tutorial') this.tutNext(g);
     } else {
       this.addScandal(10 * g.viol.length);
       this.mistake(cx, s.y, g.viol[0]);
@@ -345,13 +358,55 @@ export class HallScene extends Scene {
     sfx('alarm');
   }
 
+  /** Tutorial: the next scripted guest walks in once the previous one is seated. */
+  tutNext(g: Guest) {
+    const next = this.guests[g.id + 1];
+    this.azheLine = null;
+    if (next) {
+      next.arriveAt = this.elapsed + 0.6;
+      this.tutLine = t('tut' + (g.id + 2));
+      this.selected = null;
+    } else {
+      this.phase = 'tutdone';
+      this.phaseT = 0;
+      this.tutLine = t('tutDone');
+      this.showBanner(t('zharaysyn'), C.gold);
+      this.burst(90, 140, 40, [C.gold, C.red, C.teal, C.green]);
+      applause(2);
+    }
+  }
+
+  /** A pointing hand sliding from the waiting guest to the seat they belong in. */
+  drawFinger() {
+    const g = this.queue[0];
+    if (!g || this.drag || this.phase !== 'play' || g.id > 2) return;
+    const s = this.L.seats[this.tutTargets[g.id]];
+    const p = Math.min(1, (this.clock % 1.6) / 1.1);
+    const e = p * p * (3 - 2 * p);
+    const x0 = (this.qx.get(g.id) ?? qSlotX(0)) + 16;
+    const y0 = Q_Y + 18;
+    const x = x0 + (s.x + 8 - x0) * e;
+    const y = y0 + (s.y + 10 - y0) * e;
+    img(HAND, x - 2, y - 1);
+    if (p >= 1) box(s.x - 2, s.y - 2, 20, 20, Math.floor(this.clock * 6) % 2 ? C.gold : C.cream);
+  }
+
   // --- loop -----------------------------------------------------------------
 
   update(dt: number) {
     this.clock += dt;
     this.updateFx(dt);
     if (this.phase === 'play') this.updatePlay(dt);
-    else if (this.phase === 'asaba' || this.phase === 'fail') {
+    else if (this.phase === 'tutdone') {
+      this.phaseT += dt;
+      if (this.phaseT > 3) {
+        this.phase = 'done';
+        profile.tutorialDone = true;
+        saveProfile();
+        run.reset('campaign');
+        go('hall');
+      }
+    } else if (this.phase === 'asaba' || this.phase === 'fail') {
       this.phaseT += dt;
       if (this.phaseT > (this.phase === 'asaba' ? 3 : 2)) this.finish();
     }
@@ -408,6 +463,7 @@ export class HallScene extends Scene {
       const x = this.qx.get(g.id) ?? qSlotX(i);
       this.qx.set(g.id, x + (qSlotX(i) - x) * Math.min(1, dt * 10));
     });
+    if (run.mode === 'tutorial') return; // no clock, no patience, no kids running off
     for (const g of [...this.queue]) {
       g.patience -= dt;
       if (g.patience <= 0) this.leave(g);
@@ -545,6 +601,10 @@ export class HallScene extends Scene {
     if (d.from < 0) {
       if (this.occ[to] >= 0) {
         this.float(t('seatTaken'), 90, this.L.seats[to].y, C.cream);
+        sfx('bad');
+      } else if (run.mode === 'tutorial' && this.wouldBreak(d.g, to).length) {
+        // The tutorial never punishes: the azhe just explains and the guest goes back.
+        this.azheLine = { s: t('tutNo') + ' ' + reason(this.wouldBreak(d.g, to)[0]), t: 0 };
         sfx('bad');
       } else this.seatGuest(d.g, to);
     } else this.moveGuest(d.g, to);
@@ -690,12 +750,12 @@ export class HallScene extends Scene {
   drawHud() {
     rect(0, 0, 180, 34, C.brown);
     band(0, 0, 180);
-    const name = run.mode === 'daily' ? t('daily') : t('toiN', run.wave + 1);
+    const name = run.mode === 'daily' ? t('daily') : run.mode === 'tutorial' ? t('tutorial') : t('toiN', run.wave + 1);
     textS(`${name}: ${t('hall_' + this.w.hall)}`, 4, 6, C.cream);
     const left = Math.max(0, Math.ceil(WAVE_TIME - this.elapsed));
     const warn = left <= 15 && this.phase === 'play';
     const tc = warn ? (Math.floor(this.clock * 4) % 2 ? C.red : C.cream) : C.gold;
-    textS(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, 176, 6, tc, 1, 'r');
+    if (run.mode !== 'tutorial') textS(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, 176, 6, tc, 1, 'r');
     const bx = Math.max(measure(t('kurmet')), measure(t('scandal'))) + 8;
     text(t('kurmet'), 4, 15, C.gold);
     bar(bx, 17, 156 - bx, 3, this.kurmet / this.maxK, C.gold);
@@ -844,10 +904,13 @@ export class HallScene extends Scene {
       band(0, y + 14, 180);
       textO(b.s, 90, big ? y : y + 3, b.c, big ? 2 : 1, 'c');
     }
-    if (this.azheLine && this.phase === 'play') this.drawAzhe(this.azheLine.s, 246, false);
+    if (run.mode === 'tutorial' && (this.phase === 'play' || this.phase === 'tutdone')) {
+      this.drawFinger();
+      this.drawAzhe(this.azheLine?.s ?? this.tutLine, 246, false);
+    } else if (this.azheLine && this.phase === 'play') this.drawAzhe(this.azheLine.s, 246, false);
 
     if (this.phase === 'intro') {
-      this.drawRulesPanel(run.mode === 'daily' ? t('daily') : t('toiN', run.wave + 1));
+      this.drawRulesPanel(run.mode === 'daily' ? t('daily') : run.mode === 'tutorial' ? t('tutorial') : t('toiN', run.wave + 1));
       if (this.azheQueue.length) {
         rect(0, 0, 180, 320, 'rgba(59,36,24,0.55)');
         this.drawAzhe(this.azheQueue[0], 250, true);

@@ -1,4 +1,5 @@
 import { setCtx, W, H } from './gfx';
+import { initBackdrop, layoutBackdrop, drawBackdrop, setBackdropOrigin } from './backdrop';
 import { register, go, current, transitioning, updateTransition, drawTransition } from './ui';
 import { unlockAudio, setMuted } from './audio';
 import { HallScene } from './scenes/hall';
@@ -7,20 +8,50 @@ import { profile } from './storage';
 import { restoreWallet } from './solana';
 import { input, run } from './run';
 import { HostScene, GuestbookScene, InviteScene } from './scenes/toi';
+import { BetasharScene } from './scenes/betashar';
 import { readInvite } from './toi/link';
 
 const cv = document.getElementById('c') as HTMLCanvasElement;
 setCtx(cv.getContext('2d')!);
 
 // Integer scaling in *device* pixels so every game pixel is an exact square.
+// Phones: the game fills the safe area (notch, home bar) and follows the address bar via visualViewport.
+// Wide screens: the game stays portrait in the middle and the backdrop fills the sides.
 let scale = 1;
+const bg = document.getElementById('bg') as HTMLCanvasElement;
+initBackdrop(bg);
+
+function insets() {
+  const cs = getComputedStyle(document.documentElement);
+  const px = (v: string) => parseFloat(cs.getPropertyValue(v)) || 0;
+  return { t: px('--sat'), r: px('--sar'), b: px('--sab'), l: px('--sal') };
+}
+
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  scale = Math.max(1, Math.floor(Math.min((innerWidth * dpr) / W, (innerHeight * dpr) / H)));
-  cv.style.width = `${(W * scale) / dpr}px`;
-  cv.style.height = `${(H * scale) / dpr}px`;
+  const vv = window.visualViewport;
+  const vw = vv ? vv.width : innerWidth;
+  const vh = vv ? vv.height : innerHeight;
+  const i = insets();
+  const aw = Math.max(180, vw - i.l - i.r);
+  const ah = Math.max(320, vh - i.t - i.b);
+  scale = Math.max(1, Math.floor(Math.min((aw * dpr) / W, (ah * dpr) / H)));
+  const cssW = (W * scale) / dpr;
+  const cssH = (H * scale) / dpr;
+  layoutBackdrop(scale, dpr);
+  // Snap the game onto the backdrop's pixel grid so the ornament frame lines up exactly.
+  const cell = scale / dpr;
+  const left = i.l + Math.round((aw - cssW) / 2 / cell) * cell;
+  const top = i.t + Math.round((ah - cssH) / 2 / cell) * cell;
+  cv.style.width = `${cssW}px`;
+  cv.style.height = `${cssH}px`;
+  cv.style.left = `${left}px`;
+  cv.style.top = `${top}px`;
+  setBackdropOrigin(Math.round(left / cell), Math.round(top / cell));
 }
 addEventListener('resize', resize);
+addEventListener('orientationchange', () => setTimeout(resize, 150));
+window.visualViewport?.addEventListener('resize', resize);
 resize();
 
 function toGame(e: PointerEvent): [number, number] {
@@ -55,6 +86,7 @@ register('album', new AlbumScene());
 register('host', new HostScene());
 register('guestbook', new GuestbookScene());
 register('invite', new InviteScene());
+register('betashar', new BetasharScene());
 
 // Dev only: ?speed=N fast-forwards time; window.__scene exposes the active scene.
 const speed = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('speed')) || 1 : 1;
@@ -71,6 +103,7 @@ function frame(now: number) {
   }
   current.draw();
   drawTransition();
+  drawBackdrop(now / 1000, dt / speed);
   requestAnimationFrame(frame);
 }
 
@@ -82,7 +115,11 @@ async function boot() {
   setMuted(profile.muted);
   restoreWallet();
   const devWave = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('wave')) : 0;
-  if (devWave >= 1 && devWave <= 4) {
+  const devScene = import.meta.env.DEV ? new URLSearchParams(location.search).get('scene') : null;
+  if (devScene) {
+    run.reset();
+    go(devScene);
+  } else if (devWave >= 1 && devWave <= 4) {
     run.reset();
     run.halls = [devWave - 1];
     run.scores = [0];

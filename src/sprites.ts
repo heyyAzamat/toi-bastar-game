@@ -150,6 +150,9 @@ export const BIGCOIN = icon([
 
 const CANDY_ROWS = ['w.......w', 'ww.ooo.ww', 'wwoowooww', 'ww.ooo.ww', 'w.......w'];
 export const CANDIES = [C.red, C.teal, C.green, C.maroon].map((col) => icon(CANDY_ROWS, { ...PAL, o: col }));
+export const HAND = icon([
+  '..kk......', '.kwwk.....', '.kwwk.....', '.kwwkkkk..', '.kwwkwwkkk', 'kkwwwwwwwk', 'kwkwwwwwwk', 'kwwwwwwwwk', '.kwwwwwwk.', '..kkkkkk..',
+]);
 export const ARROW_UP = icon(['..k..', '.kgk.', 'kgggk', '.kgk.', '.kgk.', '.kkk.']);
 export const ARROW_DOWN = icon(['.kkk.', '.knk.', '.knk.', 'knnnk', '.knk.', '..k..']);
 export const ARROW_LEFT = icon(['..k...', '.ktkkk', 'kttttk', '.ktkkk', '..k...']);
