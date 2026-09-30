@@ -6,7 +6,7 @@ import { PublicKey, Transaction } from '@solana/web3.js';
 import {
   TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentInstruction, createMintToCheckedInstruction,
 } from '@solana/spl-token';
-import { authority, bump, connection, isWallet, json, tengeMint, useOnce, verifySignature } from './_lib/solana';
+import { authority, bump, connection, isWallet, json, tengeMint, useOnce, verifySignature } from './_lib/solana.js';
 
 const MAX_PER_CLAIM = 200;
 const MAX_PER_DAY = 300;

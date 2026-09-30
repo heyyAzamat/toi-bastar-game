@@ -8,10 +8,8 @@
 ![Colosseum 2026](https://img.shields.io/badge/Colosseum-2026-F5A623)
 ![License MIT](https://img.shields.io/badge/License-MIT-green)
 
-<!-- TODO: add the links once they exist, then uncomment:
-**[▶ Play now](URL)** · **[Demo video](URL)** · **[Colosseum submission](URL)**
--->
-**[How to play](#how-to-play)** · **[Solana integration](#solana-integration)** · **[Run locally](#run-locally)**
+<!-- TODO: add once they exist: **[Demo video](URL)** · **[Colosseum submission](URL)** -->
+**[▶ Play now](https://toi-bastar-six.vercel.app)** · **[How to play](#how-to-play)** · **[Solana integration](#solana-integration)**
 
 <p align="center"><img src="assets/gameplay.gif" alt="Gameplay: dragging guests to their seats" width="360"></p>
 

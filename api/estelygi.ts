@@ -7,7 +7,7 @@ import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { createGenericFile, createNoopSigner, createSignerFromKeypair, generateSigner, publicKey, signerIdentity } from '@metaplex-foundation/umi';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { create, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
-import { RPC, authority, bump, collectionAddress, isWallet, json } from './_lib/solana';
+import { RPC, authority, bump, collectionAddress, isWallet, json } from './_lib/solana.js';
 
 const MAX_PNG = 600_000;
 const IRYS = RPC.includes('devnet') ? 'https://devnet.irys.xyz' : 'https://node1.irys.xyz';
