@@ -164,3 +164,10 @@ export const TICK = icon(['....n', '...nn', 'n.nn.', 'nnn..', '.n...'], { n: C.g
 export const CROSS = icon(['r...r', '.r.r.', '..r..', '.r.r.', 'r...r'], { r: C.red });
 export const FAMILY = [C.green, C.gold, C.cream];
 export const WARN = icon(['krk', 'krk', 'krk', 'kkk', 'krk', 'kkk'], { k: C.cream, r: C.red });
+export const KESE = icon([
+  '..w...w....', '...w...w...', '..w...w....', 'kkkkkkkkkkk', 'ktttttttttk', '.kwwwwwwwk.', '.ktttttttk.', '..kkkkkkk..',
+]);
+export const DOMBRA = icon([
+  '..kkkk..........', '.kssssk.........', 'kssksssk......kk', 'ksskssskkkkkkkgk', 'kssksssk......kk', '.kssssk.........', '..kkkk..........',
+]);
+export const NOTE = icon(['..gg.', '..g.g', '..g..', '..g..', 'ggg..', 'gg...']);

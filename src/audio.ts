@@ -232,6 +232,12 @@ const SFX: Record<string, [number, number, number, OscillatorType][]> = {
   star: [[880, 0, 0.1, 'square'], [1760, 0.08, 0.25, 'square']],
   alarm: [[880, 0, 0.12, 'square'], [660, 0.14, 0.12, 'square'], [880, 0.28, 0.12, 'square'], [660, 0.42, 0.12, 'square']],
   fanfare: [[523, 0, 0.12, 'square'], [659, 0.12, 0.12, 'square'], [784, 0.24, 0.12, 'square'], [1047, 0.36, 0.4, 'square']],
+  tick: [[1250, 0, 0.03, 'square']],
+  combo: [[660, 0, 0.06, 'square'], [880, 0.05, 0.06, 'square'], [1320, 0.1, 0.14, 'square']],
+  tea: [[1400, 0, 0.04, 'triangle'], [1180, 0.04, 0.04, 'triangle'], [1500, 0.08, 0.04, 'triangle'], [1250, 0.12, 0.05, 'triangle'], [1600, 0.17, 0.08, 'triangle']],
+  advice: [[523, 0, 0.08, 'triangle'], [659, 0.08, 0.08, 'triangle'], [784, 0.16, 0.18, 'triangle']],
+  dombra: [[294, 0, 0.14, 'triangle'], [440, 0.12, 0.12, 'triangle'], [392, 0.24, 0.12, 'triangle'], [440, 0.36, 0.12, 'triangle'],
+    [294, 0.48, 0.12, 'triangle'], [330, 0.6, 0.12, 'triangle'], [294, 0.72, 0.3, 'triangle']],
   fail: [[392, 0, 0.25, 'triangle'], [370, 0.25, 0.25, 'triangle'], [349, 0.5, 0.25, 'triangle'], [330, 0.75, 0.6, 'triangle']],
 };
 

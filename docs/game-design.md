@@ -11,6 +11,17 @@ and the dombra chiptune are generated in code.
 - Two bars score the toi: **Kurmet** (respect, earned for correct seats) and **Scandal** (raised by mistakes and walk-outs). A full scandal bar ends the toi.
 - Stars come from the share of guests seated perfectly and the scandal level (Zhaman / Zhaksy / Uly toishy).
 
+## Host tools and juice
+- **Tap to seat:** tap a guest (queue or table), then tap a free cushion. Dragging still works; tapping the selected guest again drops the selection.
+- **Pause** (button next to **?**): continue, retry the hall, or go to the menu. The panel also explains the helpers.
+- **Combo:** perfect seatings in a row pay +5, +10, +15, +20 kurmet on top. A mistake or a walk-out resets it. x5 shows *TAMASHA!*, x8 and x12 *KEREMET!* with confetti. The best combo is shown on the result screen.
+- **Host helpers** (left panel, one charge each per hall, not in the tutorial):
+  - **Shai** (tea): refills the patience of everyone in the queue.
+  - **Azhe:** points a hand at a perfect free seat for the selected (or first) guest; if there is none she says so and the charge is kept.
+  - **Dombra:** a kui stops the toi clock and all patience for 7 seconds.
+- **Shashu coins:** every 8-14 s a coin floats up from a happy seated guest. Tap it for +5 kurmet and +1 tenge.
+- **Animation:** steam over the dastarkhan, dust when a guest lands, smoke and fidgeting over guests in the wrong seat, a dragged guest swings with the finger, queue guests hop in and sweat when patience is low, smooth Kurmet/Scandal bars, red flash on scandal, a big 10-to-1 countdown with ticks, sliding banners, and a wave down the table plus confetti when the asaba arrives.
+
 ## Rules
 Rules unlock hall by hall, and the azhe (grandmother) explains each new one in a speech bubble the first time.
 

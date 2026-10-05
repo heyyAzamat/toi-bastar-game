@@ -30,6 +30,7 @@ export interface Profile {
   daily: { key: string; best: number } | null;
   hosted: ToiInvite[]; // "My Toi" invites this player created
   tutorialDone: boolean;
+  seenTools: boolean; // the azhe has introduced tap-to-seat and the host helpers
   owned: string[]; // shop items, e.g. 'table:teal'
   equip: { table: string; feast: string; orn: string; avatar: string };
 }
@@ -43,7 +44,7 @@ function newId() {
 function load(): Profile {
   const base: Profile = {
     id: newId(), name: 'TOISHY', coins: 0, best: 0, stars: 0, games: 0,
-    wallet: null, walletKind: null, mementos: [], muted: false, lang: '', rep: 0, album: {}, seenRules: [], daily: null, hosted: [], tutorialDone: false, owned: [],
+    wallet: null, walletKind: null, mementos: [], muted: false, lang: '', rep: 0, album: {}, seenRules: [], daily: null, hosted: [], tutorialDone: false, seenTools: false, owned: [],
     equip: { table: 'cream', feast: 'plain', orn: 'gold', avatar: 'zhigit0' },
   };
   try {

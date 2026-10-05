@@ -212,3 +212,27 @@ export function bar(x: number, y: number, w: number, h: number, frac: number, fg
   rect(x, y, fw, h, fg);
   if (fw > 1) rect(x, y, fw, 1, C.cream);
 }
+
+/** Falling confetti in the palette. */
+export class Confetti {
+  bits: { x: number; y: number; vx: number; vy: number; c: string; s: number }[] = [];
+  spawn(n: number, x = 90, y = 0, spread = 180) {
+    const cols = [C.gold, C.red, C.teal, C.green, C.cream];
+    for (let i = 0; i < n; i++) {
+      this.bits.push({
+        x: x + (Math.random() - 0.5) * spread, y: y - Math.random() * 40,
+        vx: (Math.random() - 0.5) * 30, vy: 20 + Math.random() * 40, c: cols[i % cols.length], s: Math.random() * 6,
+      });
+    }
+  }
+  update(dt: number) {
+    for (const b of this.bits) {
+      b.x += (b.vx + Math.sin(b.y / 10 + b.s) * 12) * dt;
+      b.y += b.vy * dt;
+    }
+    this.bits = this.bits.filter((b) => b.y < 330);
+  }
+  draw() {
+    for (const b of this.bits) rect(b.x, b.y, Math.floor(b.y / 7 + b.s) % 2 ? 2 : 1, 2, b.c);
+  }
+}

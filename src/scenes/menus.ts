@@ -1,5 +1,5 @@
 // Splash, Start, Shashu, Toi result, Final, Leaderboard, Profile, Album.
-import { C, rect, box, text, textS, textO, band, vband, panel, img, wrap, measure, canvas } from '../gfx';
+import { C, rect, box, text, textS, textO, band, vband, panel, img, wrap, measure, canvas, Confetti } from '../gfx';
 import { Scene, btn, go, type Btn } from '../ui';
 import { sfx, playMusic, setMuted, applause } from '../audio';
 import { guestSprite, STAR, STAR_OFF, COIN, BIGCOIN, CANDIES, type Kind } from '../sprites';
@@ -29,30 +29,6 @@ function frameBg() {
 function stars(n: number, cx: number, y: number, scale = 2) {
   const w = 9 * scale + 4;
   for (let i = 0; i < 3; i++) img(i < n ? STAR : STAR_OFF, cx - w * 1.5 + i * w + 2, y, scale);
-}
-
-/** Falling confetti in the palette. */
-class Confetti {
-  bits: { x: number; y: number; vx: number; vy: number; c: string; s: number }[] = [];
-  spawn(n: number, x = 90, y = 0, spread = 180) {
-    const cols = [C.gold, C.red, C.teal, C.green, C.cream];
-    for (let i = 0; i < n; i++) {
-      this.bits.push({
-        x: x + (Math.random() - 0.5) * spread, y: y - Math.random() * 40,
-        vx: (Math.random() - 0.5) * 30, vy: 20 + Math.random() * 40, c: cols[i % cols.length], s: Math.random() * 6,
-      });
-    }
-  }
-  update(dt: number) {
-    for (const b of this.bits) {
-      b.x += (b.vx + Math.sin(b.y / 10 + b.s) * 12) * dt;
-      b.y += b.vy * dt;
-    }
-    this.bits = this.bits.filter((b) => b.y < 330);
-  }
-  draw() {
-    for (const b of this.bits) rect(b.x, b.y, Math.floor(b.y / 7 + b.s) % 2 ? 2 : 1, 2, b.c);
-  }
 }
 
 const DANCERS: Kind[] = ['aksakal', 'kelin', 'kuda', 'child', 'azhe', 'zhigit', 'kudagi'];
@@ -285,7 +261,7 @@ export class ShashuScene extends Scene {
 
 export interface ResultData {
   wave: number; hall: number; stars: number; title: string; perfect: number; total: number; score: number;
-  left: number; kurmet: number; scandal: number; memento: string | null;
+  left: number; kurmet: number; scandal: number; memento: string | null; combo?: number;
 }
 
 export class ResultScene extends Scene {
@@ -393,11 +369,13 @@ export class ResultScene extends Scene {
       [t('leftOffended'), String(d.left), d.left ? C.red : C.cream],
       [t('kurmet'), String(d.kurmet), C.gold],
       [t('scandal'), `${d.scandal}%`, C.red],
+      ...(d.combo ? [[t('bestCombo'), 'X' + d.combo, C.teal] as [string, string, string]] : []),
       [t('score'), String(Math.round(d.score * Math.min(1, this.t / 1.2))), C.gold],
     ];
     rows.forEach(([k, v, c], i) => {
-      text(k, 24, 113 + i * 13, C.cream);
-      textS(v, 156, 113 + i * 13, c, 1, 'r');
+      const y = 113 + i * (rows.length > 5 ? 12 : 13);
+      text(k, 24, y, C.cream);
+      textS(v, 156, y, c, 1, 'r');
     });
     if (d.stars === 3) text(t('estelygiSaved'), 90, 192, C.gold, 1, 'c');
     else if (d.stars === 0) text(t('guestsWentHome'), 90, 192, C.tan, 1, 'c');

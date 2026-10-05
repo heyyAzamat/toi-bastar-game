@@ -1,12 +1,12 @@
 // The gameplay scene: seat arriving guests before the asaba (toastmaster) arrives.
-import { C, rect, box, text, textS, textO, band, bar, panel, img, wrap, canvas, setCtx, ctx, measure } from '../gfx';
+import { C, rect, box, text, textS, textO, band, bar, panel, img, wrap, canvas, setCtx, ctx, measure, Confetti } from '../gfx';
 import { Scene, btn, go, type Btn } from '../ui';
 import { sfx, playMusic, setIntensity, applause } from '../audio';
 import {
-  HAND, RING, BOLT, HOUSE, STOOL, SMILE, TICK, CROSS, FAMILY, ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, guestSprite,
+  HAND, RING, BOLT, HOUSE, STOOL, SMILE, TICK, CROSS, FAMILY, ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, COIN, KESE, DOMBRA, NOTE, guestSprite,
 } from '../sprites';
 import { WAVE_TIME, makeGuests, tutorialGuests, isElder, isKuda, isHonored, type Guest, type WaveDef } from '../waves';
-import { layout, renderBackground, stoolSeat, type Layout } from '../hall';
+import { layout, renderBackground, stoolSeat, TABLE_X, TABLE_W, type Layout } from '../hall';
 import { run, title as titleFor, input } from '../run';
 import { t, nm } from '../i18n';
 import { profile, saveProfile } from '../storage';
@@ -19,12 +19,25 @@ const DOOR_X = 82;
 const DOOR_Y = 234;
 
 interface Floater { s: string; x: number; y: number; c: string; t: number }
+/** Soft particles: table steam, landing dust, angry smoke, tea steam. */
+interface Puff { x: number; y: number; vx: number; vy: number; t: number; life: number; c: string; s: number; a: number }
+/** A shashu coin floating up from a happy guest: tap it before it fades. */
+interface Gift { x: number; y: number; t: number; seed: number }
+interface Note { x: number; y: number; t: number; vx: number }
 interface Spark { x: number; y: number; vx: number; vy: number; t: number; c: string }
-interface Drag { g: Guest; from: number; x: number; y: number; sx: number; sy: number; moved: boolean }
+interface Drag { g: Guest; from: number; x: number; y: number; sx: number; sy: number; moved: boolean; was: boolean }
 /** A guest crossing the hall on foot: offended ones leaving, kids running off. */
 interface Walker { sprite: HTMLCanvasElement; x0: number; y0: number; x1: number; y1: number; t: number; dur: number; hm: boolean; hop: number }
 
-type Phase = 'intro' | 'play' | 'rules' | 'asaba' | 'fail' | 'done' | 'tutdone';
+type Phase = 'intro' | 'play' | 'rules' | 'pause' | 'asaba' | 'fail' | 'done' | 'tutdone';
+
+/** Host helpers: one charge each per hall, in the panel on the left. */
+type Tool = 'tea' | 'advice' | 'dombra';
+const TOOLS: Tool[] = ['tea', 'advice', 'dombra'];
+const TOOL_X = 4;
+const toolY = (i: number) => 140 + i * 23;
+const DOMBRA_TIME = 7;
+const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 
 export class HallScene extends Scene {
   w!: WaveDef;
@@ -62,6 +75,32 @@ export class HallScene extends Scene {
   startBtn!: Btn;
   rulesBtn!: Btn;
   closeBtn!: Btn;
+  pauseBtn!: Btn;
+  pauseBtns: Btn[] = [];
+  // Combo: perfect seatings in a row.
+  combo = 0;
+  bestCombo = 0;
+  comboPop = 0;
+  // Host helpers.
+  charges: Record<Tool, number> = { tea: 1, advice: 1, dombra: 1 };
+  toolDown: Tool | null = null;
+  dombraT = 0;
+  advice: { g: Guest; seat: number; t: number } | null = null;
+  // Juice.
+  puffs: Puff[] = [];
+  gifts: Gift[] = [];
+  notes: Note[] = [];
+  nextGift = 0;
+  steamT = 0;
+  smokeT = 0;
+  noteT = 0;
+  kShown = 0;
+  sShown = 0;
+  flash = 0;
+  sway = 0;
+  lastSec = 999;
+  countPop: { n: number; t: number } | null = null;
+  confetti = new Confetti();
 
   enter() {
     this.w = run.hall();
@@ -95,6 +134,24 @@ export class HallScene extends Scene {
     this.shot = null;
     this.pairBonus.clear();
     this.phase = 'intro';
+    this.combo = 0;
+    this.bestCombo = 0;
+    this.comboPop = 0;
+    this.charges = { tea: 1, advice: 1, dombra: 1 };
+    this.toolDown = null;
+    this.dombraT = 0;
+    this.advice = null;
+    this.puffs = [];
+    this.gifts = [];
+    this.notes = [];
+    this.nextGift = 10;
+    this.kShown = 0;
+    this.sShown = 0;
+    this.flash = 0;
+    this.sway = 0;
+    this.lastSec = 999;
+    this.countPop = null;
+    this.confetti = new Confetti();
 
     // The azhe explains every rule this player hasn't seen yet, one line at a time.
     if (tut) {
@@ -103,6 +160,8 @@ export class HallScene extends Scene {
       const fresh = this.w.rules.filter((r) => !profile.seenRules.includes(r));
       this.azheQueue = fresh.map((r) => t('rule' + r));
       if (!profile.seenRules.length) this.azheQueue.push(t('howTo'));
+      if (!profile.seenTools) this.azheQueue.push(t('toolsHow'));
+      profile.seenTools = true;
       profile.seenRules.push(...fresh);
       saveProfile();
     }
@@ -110,7 +169,13 @@ export class HallScene extends Scene {
     this.startBtn = btn(30, 232, 120, 18, t('toiBastar'), () => this.begin(), true);
     this.closeBtn = btn(40, 232, 100, 18, t('ok'), () => { this.phase = 'play'; this.syncButtons(); }, true);
     this.rulesBtn = btn(161, 15, 15, 14, '?', () => { this.phase = 'rules'; this.drag = null; this.syncButtons(); });
-    this.buttons = [this.startBtn, this.closeBtn, this.rulesBtn];
+    this.pauseBtn = btn(144, 15, 15, 14, '', () => { this.phase = 'pause'; this.drag = null; this.syncButtons(); });
+    this.pauseBtns = [
+      btn(30, 196, 120, 18, t('resume'), () => { this.phase = 'play'; this.syncButtons(); }, true),
+      btn(30, 218, 58, 16, t('retry'), () => go('hall')),
+      btn(92, 218, 58, 16, t('menu'), () => go('start')),
+    ];
+    this.buttons = [this.startBtn, this.closeBtn, this.rulesBtn, this.pauseBtn, ...this.pauseBtns];
     this.syncButtons();
     playMusic('menu');
   }
@@ -119,6 +184,8 @@ export class HallScene extends Scene {
     this.startBtn.hidden = this.phase !== 'intro' || this.azheQueue.length > 0;
     this.closeBtn.hidden = this.phase !== 'rules';
     this.rulesBtn.hidden = this.phase !== 'play';
+    this.pauseBtn.hidden = this.phase !== 'play';
+    for (const b of this.pauseBtns) b.hidden = this.phase !== 'pause';
   }
 
   begin() {
@@ -212,6 +279,46 @@ export class HallScene extends Scene {
     if (n <= 0) return;
     this.scandal += n;
     this.shake = 0.3;
+    this.flash = 0.35;
+    this.breakCombo();
+  }
+
+  breakCombo() {
+    this.combo = 0;
+  }
+
+  /** Perfect seating in a row: each one past the first pays a growing bonus. */
+  addCombo() {
+    if (run.mode === 'tutorial') return;
+    this.combo++;
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    this.comboPop = 0.4;
+    if (this.combo < 2) return;
+    const bonus = Math.min(20, 5 * (this.combo - 1));
+    this.kurmet += bonus;
+    // The bonus rises out of the combo counter, clear of the seat floaters.
+    this.float('+' + bonus, TOOL_X + 11, 108, C.teal);
+    sfx('combo');
+    if (this.combo === 5 || this.combo === 8 || this.combo === 12) {
+      this.showBanner(t(this.combo === 5 ? 'tamasha' : 'keremet'), C.gold);
+      this.confetti.spawn(40);
+      applause(1.5);
+    }
+  }
+
+  puff(x: number, y: number, n: number, c: string[], o: Partial<Puff> = {}) {
+    for (let i = 0; i < n; i++) {
+      this.puffs.push({ x, y, vx: rnd(-6, 6), vy: rnd(-10, -4), t: 0, life: 0.8, c: c[i % c.length], s: 1, a: 1, ...o });
+    }
+  }
+
+  /** Dust kicked off the cushion when a guest lands on it. */
+  dust(seat: number) {
+    const s = this.L.seats[seat];
+    for (let i = 0; i < 8; i++) {
+      const dir = i % 2 ? 1 : -1;
+      this.puffs.push({ x: s.x + 8 + dir * 5, y: s.y + 14, vx: dir * rnd(10, 22), vy: rnd(-8, -2), t: 0, life: 0.45, c: i % 3 ? C.cream : C.tan, s: i % 2 + 1, a: 0.9 });
+    }
   }
 
   mistake(x: number, y: number, why: string) {
@@ -238,6 +345,8 @@ export class HallScene extends Scene {
     this.occ[i] = g.id;
     this.hops.set(g.id, 0.35);
     this.refresh();
+    this.dust(i);
+    if (this.advice?.g === g) this.advice = null;
     const s = this.L.seats[i];
     const cx = s.x + 8;
     if (!g.viol.length) {
@@ -250,6 +359,7 @@ export class HallScene extends Scene {
       this.burst(cx, s.y + 8, 12, [C.gold, C.cream, C.green]);
       sfx('good');
       this.kudaBonus(g);
+      this.addCombo();
       if (run.mode === 'tutorial') this.tutNext(g);
     } else {
       this.addScandal(10 * g.viol.length);
@@ -283,6 +393,8 @@ export class HallScene extends Scene {
     this.occ[to] = g.id;
     this.hops.set(g.id, 0.35);
     this.refresh();
+    this.dust(to);
+    if (other) this.dust(from);
     let worse = false;
     let better = false;
     for (const [h, old] of before) {
@@ -358,6 +470,71 @@ export class HallScene extends Scene {
     sfx('alarm');
   }
 
+  // --- host helpers ------------------------------------------------------
+
+  useTool(k: Tool) {
+    if (!this.charges[k]) { sfx('bad'); return; }
+    if (k === 'tea') {
+      if (!this.queue.length) { this.float(t('noOneWaiting'), 90, 230, C.cream); sfx('bad'); return; }
+      for (const g of this.queue) {
+        g.patience = g.maxP;
+        const x = (this.qx.get(g.id) ?? 0) + 16;
+        this.puff(x, Q_Y + 4, 6, [C.cream], { vy: -14, life: 1.2, a: 0.7, s: 2 });
+        this.hops.set(g.id, 0.35);
+      }
+      this.float(t('u_tea'), 90, 236, C.teal);
+    } else if (k === 'advice') {
+      const g = this.selected?.state === 'queue' ? this.selected : this.queue[0];
+      if (!g) { this.float(t('noOneWaiting'), 90, 230, C.cream); sfx('bad'); return; }
+      const seat = this.L.seats.find((st) => this.occ[st.i] < 0 && !this.wouldBreak(g, st.i).length);
+      if (!seat) { this.azheLine = { s: t('noGoodSeat'), t: 0 }; sfx('bad'); return; }
+      this.advice = { g, seat: seat.i, t: 6 };
+      this.selected = g;
+      this.azheLine = { s: t('u_advice'), t: 1.5 };
+    } else {
+      this.dombraT = DOMBRA_TIME;
+      this.showBanner(t('u_dombra'), C.teal);
+    }
+    this.charges[k]--;
+    sfx(k);
+  }
+
+  toolAt(x: number, y: number): Tool | null {
+    if (run.mode === 'tutorial' || x < TOOL_X || x >= TOOL_X + 22) return null;
+    return TOOLS.find((_, i) => y >= toolY(i) && y < toolY(i) + 20) ?? null;
+  }
+
+  spawnGift() {
+    const happy = this.L.seats.filter((st) => this.occ[st.i] >= 0 && !this.byId(this.occ[st.i]).viol.length);
+    if (!happy.length) return false;
+    const st = happy[Math.floor(Math.random() * happy.length)];
+    this.gifts.push({ x: st.x + 8, y: st.y - 2, t: 0, seed: Math.random() * 6 });
+    sfx('candy');
+    return true;
+  }
+
+  giftPos(g: Gift): [number, number] {
+    return [g.x + Math.sin(g.t * 3 + g.seed) * 4, g.y - g.t * 7];
+  }
+
+  catchGift(x: number, y: number) {
+    const i = this.gifts.findIndex((g) => {
+      const [gx, gy] = this.giftPos(g);
+      return Math.hypot(gx - x, gy - y) < 11;
+    });
+    if (i < 0) return false;
+    const [gx, gy] = this.giftPos(this.gifts[i]);
+    this.gifts.splice(i, 1);
+    this.kurmet += 5;
+    run.coins++;
+    profile.coins++;
+    this.float(t('shashuTap'), gx, gy - 8, C.gold);
+    this.float('+1 ' + t('tenge'), gx, gy, C.cream);
+    this.burst(gx, gy, 14, [C.gold, C.cream, C.red, C.teal]);
+    sfx('coin');
+    return true;
+  }
+
   /** Tutorial: the next scripted guest walks in once the previous one is seated. */
   tutNext(g: Guest) {
     const next = this.guests[g.id + 1];
@@ -407,12 +584,51 @@ export class HallScene extends Scene {
         go('hall');
       }
     } else if (this.phase === 'asaba' || this.phase === 'fail') {
+      if (this.phase === 'asaba' && this.phaseT % 0.7 < dt) this.confetti.spawn(14);
       this.phaseT += dt;
       if (this.phaseT > (this.phase === 'asaba' ? 3 : 2)) this.finish();
     }
   }
 
   updateFx(dt: number) {
+    const live = this.phase !== 'pause' && this.phase !== 'rules';
+    this.kShown += (this.kurmet - this.kShown) * Math.min(1, dt * 5);
+    this.sShown += (this.scandal - this.sShown) * Math.min(1, dt * 7);
+    this.flash = Math.max(0, this.flash - dt);
+    this.comboPop = Math.max(0, this.comboPop - dt);
+    this.sway -= this.sway * Math.min(1, dt * 8);
+    if (this.countPop && (this.countPop.t += dt) > 0.9) this.countPop = null;
+    this.confetti.update(dt);
+    for (const p of this.puffs) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 1 - Math.min(1, dt * 3); }
+    this.puffs = this.puffs.filter((p) => p.t < p.life);
+    for (const n of this.notes) { n.t += dt; n.y -= 18 * dt; n.x += n.vx * dt + Math.sin(n.t * 5) * 0.4; }
+    this.notes = this.notes.filter((n) => n.t < 2);
+    if (live) {
+      for (const g of this.gifts) g.t += dt;
+      this.gifts = this.gifts.filter((g) => g.t < 5);
+      if (this.advice && ((this.advice.t -= dt) <= 0 || this.advice.g.state !== 'queue' || this.occ[this.advice.seat] >= 0)) this.advice = null;
+      // Steam off the beshbarmak and the tea bowls.
+      if ((this.steamT -= dt) <= 0) {
+        this.steamT = 0.22;
+        const row = Math.floor(Math.random() * this.L.rows);
+        const cy = this.L.tableTop + row * this.L.spacing + this.L.spacing / 2;
+        this.puffs.push({ x: TABLE_X + TABLE_W / 2 + rnd(-6, 6), y: cy - 3, vx: rnd(-2, 2), vy: rnd(-9, -6), t: 0, life: 1.5, c: C.cream, s: 1, a: 0.55 });
+      }
+      // Guests sitting in the wrong place fume.
+      if ((this.smokeT -= dt) <= 0) {
+        this.smokeT = 0.35;
+        for (const st of this.L.seats) {
+          const id = this.occ[st.i];
+          if (id < 0 || !this.byId(id).viol.length || Math.random() < 0.4) continue;
+          this.puffs.push({ x: st.x + 8 + rnd(-3, 3), y: st.y + 2, vx: rnd(-3, 3), vy: rnd(-16, -10), t: 0, life: 0.7, c: Math.random() < 0.5 ? C.red : C.brown, s: 2, a: 0.8 });
+        }
+      }
+      if (this.dombraT > 0 && (this.noteT -= dt) <= 0) {
+        this.noteT = 0.18;
+        const left = Math.random() < 0.5;
+        this.notes.push({ x: left ? rnd(30, 50) : rnd(130, 150), y: rnd(120, 240), t: 0, vx: left ? -4 : 4 });
+      }
+    }
     for (const f of this.floaters) { f.t += dt; f.y -= 14 * dt; }
     this.floaters = this.floaters.filter((f) => f.t < 1.3);
     for (const p of this.sparks) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 120 * dt; }
@@ -430,7 +646,10 @@ export class HallScene extends Scene {
   }
 
   updatePlay(dt: number) {
-    this.elapsed += dt;
+    // The dombyrashy plays a kui: the clock and everyone's patience stop while it lasts.
+    const frozen = this.dombraT > 0;
+    if (frozen) this.dombraT = Math.max(0, this.dombraT - dt);
+    else this.elapsed += dt;
     for (const g of this.guests) {
       if (g.state !== 'pending' || g.arriveAt > this.elapsed) continue;
       this.meet(g);
@@ -464,6 +683,8 @@ export class HallScene extends Scene {
       this.qx.set(g.id, x + (qSlotX(i) - x) * Math.min(1, dt * 10));
     });
     if (run.mode === 'tutorial') return; // no clock, no patience, no kids running off
+    if (frozen) return;
+    if (this.elapsed >= this.nextGift) this.nextGift = this.elapsed + (this.spawnGift() ? rnd(8, 14) : 2);
     for (const g of [...this.queue]) {
       g.patience -= dt;
       if (g.patience <= 0) this.leave(g);
@@ -475,6 +696,12 @@ export class HallScene extends Scene {
       if (g.state === 'seated' && g.runDelay && this.elapsed - g.seatedAt > g.runDelay && left > 10) this.runOff(g);
     }
     setIntensity(left < 10 ? 2 : left < 20 ? 1 : 0);
+    const sec = Math.ceil(left);
+    if (sec <= 10 && sec > 0 && sec !== this.lastSec) {
+      this.lastSec = sec;
+      this.countPop = { n: sec, t: 0 };
+      sfx('tick');
+    }
 
     if (this.scandal >= 100) {
       this.scandal = 100;
@@ -509,6 +736,10 @@ export class HallScene extends Scene {
     }
     this.queue = [];
     this.outside = [];
+    this.gifts = [];
+    this.advice = null;
+    this.dombraT = 0;
+    this.confetti.spawn(70);
     if (left > 1) {
       this.timeBonus = Math.floor(left);
       this.kurmet += this.timeBonus;
@@ -539,7 +770,7 @@ export class HallScene extends Scene {
     const title = titleFor(stars);
     go('result', {
       wave: run.wave + 1, hall: this.w.idx, stars, title, perfect, total, score,
-      left: guests.filter((g) => g.state === 'left').length,
+      left: guests.filter((g) => g.state === 'left').length, combo: this.bestCombo,
       kurmet: Math.round(this.kurmet), scandal: Math.round(this.scandal),
       memento: stars ? this.makeMemento(title, stars) : null,
     });
@@ -565,6 +796,9 @@ export class HallScene extends Scene {
       return;
     }
     if (this.phase !== 'play') return;
+    if (this.catchGift(x, y)) return;
+    const tool = this.toolAt(x, y);
+    if (tool) { this.toolDown = tool; return; }
     let g: Guest | undefined;
     let from = -1;
     if (y >= Q_Y - 2 && y < Q_Y + 36) {
@@ -576,8 +810,17 @@ export class HallScene extends Scene {
       const s = this.L.seats.find((s) => this.occ[s.i] >= 0 && x >= s.x && x < s.x + 16 && y >= s.y && y < s.y + 16);
       if (s) { g = this.byId(this.occ[s.i]); from = s.i; }
     }
-    if (!g) return;
-    this.drag = { g, from, x, y, sx: x, sy: y, moved: false };
+    if (!g) {
+      // Tap-to-seat: a guest is selected, now tap a free cushion.
+      const sel = this.selected;
+      const to = this.seatAt(x, y);
+      if (sel && to >= 0 && this.occ[to] < 0 && (sel.state === 'queue' || sel.state === 'seated')) {
+        this.place(sel, sel.state === 'seated' ? sel.seat : -1, to);
+        this.selected = null;
+      }
+      return;
+    }
+    this.drag = { g, from, x, y, sx: x, sy: y, moved: false, was: this.selected === g };
     this.selected = g;
     sfx('pick');
   }
@@ -585,6 +828,7 @@ export class HallScene extends Scene {
   onMove(x: number, y: number) {
     const d = this.drag;
     if (!d) return;
+    this.sway = Math.max(-0.45, Math.min(0.45, this.sway + (x - d.x) * 0.05));
     d.x = x;
     d.y = y;
     if (Math.hypot(x - d.sx, y - d.sy) > 3) d.moved = true;
@@ -592,22 +836,37 @@ export class HallScene extends Scene {
   }
 
   onUp(x: number, y: number) {
+    const tool = this.toolDown;
+    this.toolDown = null;
+    if (tool) {
+      if (this.toolAt(x, y) === tool && this.phase === 'play') this.useTool(tool);
+      return;
+    }
     const d = this.drag;
     this.drag = null;
     this.hover = -1;
-    if (!d || !d.moved || this.phase !== 'play') return;
+    if (!d || this.phase !== 'play') return;
+    if (!d.moved) {
+      // Tapping the selected guest again puts them down.
+      if (d.was) this.selected = null;
+      return;
+    }
     const to = this.seatAt(x, y - input.liftY);
-    if (to < 0) return;
-    if (d.from < 0) {
+    if (to >= 0) this.place(d.g, d.from, to);
+  }
+
+  /** Seat a queued guest (from = -1) or move a seated one; shared by drag and tap. */
+  place(g: Guest, from: number, to: number) {
+    if (from < 0) {
       if (this.occ[to] >= 0) {
         this.float(t('seatTaken'), 90, this.L.seats[to].y, C.cream);
         sfx('bad');
-      } else if (run.mode === 'tutorial' && this.wouldBreak(d.g, to).length) {
+      } else if (run.mode === 'tutorial' && this.wouldBreak(g, to).length) {
         // The tutorial never punishes: the azhe just explains and the guest goes back.
-        this.azheLine = { s: t('tutNo') + ' ' + reason(this.wouldBreak(d.g, to)[0]), t: 0 };
+        this.azheLine = { s: t('tutNo') + ' ' + reason(this.wouldBreak(g, to)[0]), t: 0 };
         sfx('bad');
-      } else this.seatGuest(d.g, to);
-    } else this.moveGuest(d.g, to);
+      } else this.seatGuest(g, to);
+    } else this.moveGuest(g, to);
   }
 
   // --- drawing ----------------------------------------------------------
@@ -656,9 +915,15 @@ export class HallScene extends Scene {
       const g = this.byId(id);
       if (this.drag?.g === g && this.drag.moved) continue;
       const hop = this.hops.get(id) ?? 0;
-      const lift = hop ? Math.round(Math.sin((hop / 0.35) * Math.PI) * 5) : 0;
-      const bob = Math.floor((this.clock * 2 + id * 0.37) % 4) === 0 ? -1 : 0;
-      this.drawSeated(g, s.x, s.y + bob - lift);
+      let lift = hop ? Math.round(Math.sin((hop / 0.35) * Math.PI) * 5) : 0;
+      let bob = Math.floor((this.clock * 2 + id * 0.37) % 4) === 0 ? -1 : 0;
+      let dx = 0;
+      // Upset guests fidget in bursts; during a kui everyone sways; the asaba gets a wave down the table.
+      if (g.viol.length && (this.clock + id * 0.3) % 1.6 < 0.3) dx = Math.floor(this.clock * 24) % 2 ? 1 : -1;
+      if (this.dombraT > 0) dx = Math.round(Math.sin(this.clock * 5 + s.row * 0.6));
+      if (this.phase === 'asaba' && !g.viol.length) lift = Math.max(lift, Math.round(Math.max(0, Math.sin(this.phaseT * 7 - s.row * 0.7)) * 4));
+      if (this.combo >= 3 && !g.viol.length && this.phase === 'play') bob = Math.floor((this.clock * 4 + id * 0.37) % 2) === 0 ? -1 : 0;
+      this.drawSeated(g, s.x + dx, s.y + bob - lift);
       if (focus && focus !== g && blink) {
         if (focus.rival === g.id && this.w.rules.includes(4)) box(s.x - 1, s.y - 1, 18, 18, C.red);
         if (focus.pair && focus.pair === g.pair && this.w.rules.includes(3)) box(s.x - 1, s.y - 1, 18, 18, C.gold);
@@ -680,6 +945,68 @@ export class HallScene extends Scene {
         img(TICK, s.x + 5, s.y + 8);
       } else img(CROSS, s.x + 5, s.y + 8);
     }
+  }
+
+  drawAdvice() {
+    const a = this.advice;
+    if (!a || this.phase !== 'play') return;
+    const s = this.L.seats[a.seat];
+    const p = Math.floor(this.clock * 6) % 2;
+    box(s.x - 3 - p, s.y - 3 - p, 22 + p * 2, 22 + p * 2, C.gold);
+    box(s.x - 2 - p, s.y - 2 - p, 20 + p * 2, 20 + p * 2, C.cream);
+    img(HAND, s.x + 4, s.y - 12 - Math.round(Math.abs(Math.sin(this.clock * 6)) * 3));
+  }
+
+  /** Left column: the combo counter and the three host helpers. */
+  drawHostPanel() {
+    if (run.mode === 'tutorial') return;
+    rect(1, 114, 30, 99, C.brown);
+    box(0, 113, 32, 101, C.gold);
+    text(t('comboLbl'), 16, 116, C.tan, 1, 'c');
+    const label = 'X' + this.combo;
+    const big = measure(label, 2) <= 26;
+    const pop = this.comboPop > 0.25 ? -2 : 0;
+    const cc = this.combo >= 5 ? (Math.floor(this.clock * 8) % 2 ? C.gold : C.cream) : this.combo >= 2 ? C.gold : C.tan;
+    textO(label, 16, 125 + pop + (big ? 0 : 3), cc, big ? 2 : 1, 'c');
+    TOOLS.forEach((k, i) => {
+      const x = TOOL_X;
+      const y = toolY(i);
+      const n = this.charges[k];
+      const down = this.toolDown === k ? 1 : 0;
+      const active = (k === 'dombra' && this.dombraT > 0) || (k === 'advice' && this.advice);
+      if (!down) rect(x + 1, y + 1, 22, 20, C.brown);
+      rect(x + down, y + down, 22, 20, n ? C.maroon : C.brown);
+      box(x + down, y + down, 22, 20, active ? (Math.floor(this.clock * 8) % 2 ? C.teal : C.cream) : n ? C.gold : C.tan);
+      const icon = k === 'tea' ? KESE : k === 'dombra' ? DOMBRA : guestSprite('azhe', 1);
+      if (!n && !active) ctx.globalAlpha = 0.35;
+      const wob = n && this.phase === 'play' && Math.floor(this.clock * 2 + i) % 6 === 0 ? -1 : 0;
+      img(icon, x + down + Math.floor((22 - icon.width) / 2), y + down + Math.floor((20 - icon.height) / 2) + wob);
+      ctx.globalAlpha = 1;
+      if (n) {
+        rect(x + 16 + down, y + 14 + down, 5, 5, C.gold);
+        rect(x + 17 + down, y + 15 + down, 3, 3, C.cream);
+      }
+    });
+    if (this.dombraT > 0) {
+      const w = Math.round((this.dombraT / DOMBRA_TIME) * 22);
+      rect(TOOL_X, toolY(2) + 21, w, 2, C.teal);
+    }
+  }
+
+  drawPausePanel() {
+    panel(8, 42, 164, 200);
+    textO(t('pause'), 90, 50, C.gold, 2, 'c');
+    textS(t('helpers'), 90, 70, C.cream, 1, 'c');
+    let y = 84;
+    TOOLS.forEach((k) => {
+      const icon = k === 'tea' ? KESE : k === 'dombra' ? DOMBRA : guestSprite('azhe', 1);
+      rect(16, y - 1, 22, 20, C.brown);
+      img(icon, 16 + Math.floor((22 - icon.width) / 2), y - 1 + Math.floor((20 - icon.height) / 2));
+      textS(t('n_' + k), 44, y, this.charges[k] ? C.gold : C.tan);
+      wrap(t('d_' + k), 120).slice(0, 2).forEach((l, j) => text(l, 44, y + 9 + j * 8, C.cream));
+      y += 32;
+    });
+    text(t('oncePerHall'), 90, y - 2, C.tan, 1, 'c');
   }
 
   drawWalkers() {
@@ -754,14 +1081,22 @@ export class HallScene extends Scene {
     textS(`${name}: ${t('hall_' + this.w.hall)}`, 4, 6, C.cream);
     const left = Math.max(0, Math.ceil(WAVE_TIME - this.elapsed));
     const warn = left <= 15 && this.phase === 'play';
-    const tc = warn ? (Math.floor(this.clock * 4) % 2 ? C.red : C.cream) : C.gold;
+    const tc = this.dombraT > 0 ? C.teal : warn ? (Math.floor(this.clock * 4) % 2 ? C.red : C.cream) : C.gold;
     if (run.mode !== 'tutorial') textS(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, 176, 6, tc, 1, 'r');
     const bx = Math.max(measure(t('kurmet')), measure(t('scandal'))) + 8;
+    const bw = 140 - bx;
     text(t('kurmet'), 4, 15, C.gold);
-    bar(bx, 17, 156 - bx, 3, this.kurmet / this.maxK, C.gold);
+    bar(bx, 17, bw, 3, this.kShown / this.maxK, C.gold);
+    // A glint runs along the respect bar while it is still filling.
+    if (this.kurmet - this.kShown > 0.5) {
+      const tip = bx + Math.min(bw, Math.round((bw * this.kShown) / this.maxK));
+      rect(tip - 1, 16, 2, 5, C.cream);
+    }
     text(t('scandal'), 4, 24, C.red);
-    bar(bx, 26, 156 - bx, 3, this.scandal / 100, this.shake > 0 && Math.floor(this.clock * 20) % 2 ? C.cream : C.red);
+    bar(bx, 26, bw, 3, this.sShown / 100, this.shake > 0 && Math.floor(this.clock * 20) % 2 ? C.cream : C.red);
+    if (this.sShown > 70 && Math.floor(this.clock * 3) % 2) box(bx - 2, 24, bw + 4, 7, C.red);
     rect(0, 33, 180, 1, C.gold);
+
   }
 
   drawQueue() {
@@ -775,11 +1110,29 @@ export class HallScene extends Scene {
     this.queue.forEach((g, i) => {
       if (this.drag?.g === g && this.drag.moved) return;
       const frac = g.patience / g.maxP;
-      const jit = frac < 0.3 ? Math.round(Math.sin(this.clock * 40)) : 0;
-      const x = Math.round(this.qx.get(g.id) ?? qSlotX(i)) + jit;
-      this.portrait(g, x, Q_Y);
-      if (this.selected === g) box(x - 2, Q_Y - 2, 36, 36, C.cream);
-      bar(x, Q_Y + 35, 32, 2, frac, frac > 0.5 ? C.green : frac > 0.25 ? C.gold : C.red);
+      const frozen = this.dombraT > 0;
+      const jit = frac < 0.3 && !frozen ? Math.round(Math.sin(this.clock * 40)) : 0;
+      const qx = this.qx.get(g.id) ?? qSlotX(i);
+      // Walking in: a little hop until they reach their slot.
+      const walking = Math.abs(qx - qSlotX(i)) > 2;
+      const hopY = walking ? -Math.round(Math.abs(Math.sin(this.clock * 16 + g.id)) * 3) : 0;
+      const tea = this.hops.get(g.id) ?? 0;
+      const lift = tea ? Math.round(Math.sin((tea / 0.35) * Math.PI) * 3) : 0;
+      const x = Math.round(qx) + jit + (frozen ? Math.round(Math.sin(this.clock * 5 + i)) : 0);
+      const y = Q_Y + hopY - lift;
+      this.portrait(g, x, y);
+      if (this.selected === g) {
+        const p = Math.floor(this.clock * 4) % 2;
+        box(x - 2 - p, y - 2 - p, 36 + p * 2, 36 + p * 2, C.cream);
+      }
+      if (frac < 0.3 && !frozen) {
+        // A bead of sweat sliding down the portrait.
+        const dy = Math.floor((this.clock * 14) % 10);
+        rect(x + 22, y + 6 + dy, 2, 3, C.teal);
+        rect(x + 22, y + 6 + dy, 1, 1, C.cream);
+      }
+      const bc = frozen ? C.teal : frac > 0.5 ? C.green : frac > 0.25 ? C.gold : frac < 0.15 && Math.floor(this.clock * 8) % 2 ? C.cream : C.red;
+      bar(x, Q_Y + 35, 32, 2, frac, bc);
     });
     if (this.outside.length) textS('+' + this.outside.length, 176, Q_Y + 12, C.gold, 1, 'r');
 
@@ -857,6 +1210,7 @@ export class HallScene extends Scene {
     if (this.shake > 0) ctx.translate(Math.round(Math.random() * 2 - 1), Math.round(Math.random() * 2 - 1));
     this.drawTable();
     this.drawHints();
+    this.drawAdvice();
 
     if (this.drag?.moved && this.hover >= 0) {
       const s = this.L.seats[this.hover];
@@ -878,8 +1232,28 @@ export class HallScene extends Scene {
 
     this.drawHud();
     this.drawQueue();
+    this.drawHostPanel();
 
+    for (const p of this.puffs) {
+      ctx.globalAlpha = p.a * (1 - p.t / p.life);
+      const sz = p.s + (p.life > 1 && p.t > p.life / 2 ? 1 : 0);
+      rect(p.x, p.y, sz, sz, p.c);
+    }
+    ctx.globalAlpha = 1;
+    for (const n of this.notes) {
+      ctx.globalAlpha = Math.min(1, (2 - n.t) * 2);
+      img(NOTE, n.x, n.y);
+    }
+    ctx.globalAlpha = 1;
+    for (const g of this.gifts) {
+      const [gx, gy] = this.giftPos(g);
+      if (g.t > 3.5 && Math.floor(g.t * 10) % 2) continue;
+      const ring = Math.floor(this.clock * 6) % 2 ? C.cream : C.gold;
+      box(gx - 6, gy - 6, 13, 13, ring);
+      img(COIN, gx - 3, gy - 3);
+    }
     for (const p of this.sparks) rect(p.x, p.y, p.t < 0.4 ? 2 : 1, p.t < 0.4 ? 2 : 1, p.c);
+    this.confetti.draw();
     for (const f of this.floaters) {
       ctx.globalAlpha = Math.min(1, (1.3 - f.t) * 3);
       const hw = measure(f.s) / 2 + 2;
@@ -889,20 +1263,43 @@ export class HallScene extends Scene {
 
     const d = this.drag;
     if (d?.moved) {
-      const x = d.x - 8;
-      const y = d.y - input.liftY - 9;
-      rect(x + 2, y + 16, 12, 2, C.brown);
-      this.drawSeated(d.g, x, y);
+      const x = Math.round(d.x - 8);
+      const y = Math.round(d.y - input.liftY - 9);
+      ctx.globalAlpha = 0.5;
+      rect(x + 3, y + 21, 10, 2, C.brown);
+      ctx.globalAlpha = 1;
+      // The guest dangles from the finger and swings with the motion.
+      ctx.save();
+      ctx.translate(x + 8, y);
+      ctx.rotate(-this.sway);
+      this.drawSeated(d.g, -8, Math.round(Math.sin(this.clock * 9)));
+      ctx.restore();
+    }
+
+    if (this.countPop && this.phase === 'play') {
+      const c = this.countPop;
+      ctx.globalAlpha = 0.6 * (1 - c.t / 0.9);
+      textO(String(c.n), 90, c.t < 0.1 ? 100 : 104, c.n <= 3 ? C.red : C.cream, c.t < 0.1 ? 7 : 6, 'c');
+      ctx.globalAlpha = 1;
+    }
+    if (this.flash > 0) {
+      ctx.globalAlpha = this.flash / 0.35;
+      for (const [x, y, w, h] of [[0, 34, 180, 3], [0, 249, 180, 3], [0, 34, 3, 218], [177, 34, 3, 218]]) rect(x, y, w, h, C.red);
+      ctx.globalAlpha = 1;
     }
 
     if (this.banner) {
+      // Slides in from the left, overshoots a touch, and leaves to the right.
       const b = this.banner;
-      const y = 130 - Math.max(0, 0.2 - b.t) * 100;
+      const p = Math.min(1, b.t / 0.3);
+      const e = 1 + 2.2 * Math.pow(p - 1, 3) + 1.2 * Math.pow(p - 1, 2);
+      const dx = Math.round((1 - e) * -180 + Math.max(0, (b.t - 1.5) / 0.3) * 180);
+      const y = 130;
       const big = measure(b.s, 2) <= 170;
-      rect(0, y - 7, 180, 26, C.brown);
-      band(0, y - 7, 180);
-      band(0, y + 14, 180);
-      textO(b.s, 90, big ? y : y + 3, b.c, big ? 2 : 1, 'c');
+      rect(dx, y - 7, 180, 26, C.brown);
+      band(dx, y - 7, 180);
+      band(dx, y + 14, 180);
+      textO(b.s, 90 + dx, big ? y : y + 3, b.c, big ? 2 : 1, 'c');
     }
     if (run.mode === 'tutorial' && (this.phase === 'play' || this.phase === 'tutdone')) {
       this.drawFinger();
@@ -917,6 +1314,15 @@ export class HallScene extends Scene {
       }
     }
     if (this.phase === 'rules') this.drawRulesPanel(t('rules'));
+    if (this.phase === 'pause') {
+      rect(0, 34, 180, 286, 'rgba(59,36,24,0.55)');
+      this.drawPausePanel();
+    }
     this.drawButtons();
+    if (!this.pauseBtn.hidden) {
+      const off = this.pressed === this.pauseBtn ? 1 : 0;
+      rect(149 + off, 18 + off, 2, 8, C.cream);
+      rect(153 + off, 18 + off, 2, 8, C.cream);
+    }
   }
 }
