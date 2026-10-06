@@ -26,7 +26,7 @@ always shows up when every seat is taken. The game turns that into rules you can
 
 ## How to play
 
-1. Guests queue at the bottom of the screen. **Drag a guest onto a cushion.** Drag seated guests to swap them.
+1. Guests queue at the bottom of the screen. **Drag a guest onto a cushion, or tap the guest and then tap the cushion.** Drag seated guests to swap them.
 2. Pick a guest up and every free seat shows a green tick (fine) or a red cross (breaks a rule).
 3. Seat everyone correctly to fill the **Kurmet** (respect) bar. Mistakes fill the **Scandal** bar; a full scandal bar ends the toi.
 
@@ -42,6 +42,8 @@ always shows up when every seat is taken. The game turns that into rules you can
 | 6 | The late cousin from the aul gets the stool |
 | 7 | Nagashy (mother's kin) next to their own family |
 | 8 | The surprise akim (mayor) on the tor row |
+
+**Host helpers and combos.** Perfect seatings in a row build a combo that pays bonus Kurmet (*Tamasha!* at x5). Once per hall you can pour **Shai** (tea refills everyone's patience), ask the **Azhe** (she points at a perfect seat), or play the **Dombra** (a kui stops time for 7 seconds). Shashu coins float up from happy guests: tap them for tenge.
 
 **Two timers** run at once:
 
