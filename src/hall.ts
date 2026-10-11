@@ -1,58 +1,14 @@
 // Hall geometry and the cached background (floor, dastarkhan, food, cushions).
 import { C, canvas, setCtx, rect, box, band, vband, text, textS, ctx } from './gfx';
-import { rng, type WaveDef } from './waves';
+import { rng, TABLE_X, TABLE_W, type WaveDef, type Layout, type Seat } from './sim/rules';
 import { t } from './i18n';
 import { profile } from './storage';
 import { TABLECLOTHS } from './shop';
 
-export interface Seat {
-  i: number;
-  row: number;
-  side: 'groom' | 'bride' | 'none';
-  x: number;
-  y: number;
-  zone: 'honor' | 'child' | 'plain' | 'stool';
-}
+export { layout, stoolSeat, TABLE_X, TABLE_W, type Seat, type Layout } from './sim/rules';
 
-export interface Layout {
-  rows: number;
-  spacing: number;
-  tableTop: number;
-  tableH: number;
-  seats: Seat[];
-}
-
-export const TABLE_X = 70;
-export const TABLE_W = 40;
 export const HALL_TOP = 34;
 export const HALL_BOTTOM = 252;
-
-export function layout(w: WaveDef): Layout {
-  const rows = w.seats / 2;
-  // Halls with a cousin keep space at the door end for the stool.
-  const avail = w.cousin ? 170 : 188;
-  const spacing = Math.min(24, Math.floor(avail / rows));
-  const tableH = rows * spacing;
-  const tableTop = 52 + Math.floor((avail - tableH) / 2);
-  const seats: Seat[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let s = 0; s < 2; s++) {
-      const zone = r < w.honorRows ? 'honor' : w.childRows && r >= rows - w.childRows ? 'child' : 'plain';
-      seats.push({
-        i: r * 2 + s, row: r, side: s === 0 ? 'groom' : 'bride',
-        x: s === 0 ? TABLE_X - 18 : TABLE_X + TABLE_W + 2,
-        y: tableTop + r * spacing + Math.floor((spacing - 16) / 2),
-        zone,
-      });
-    }
-  }
-  return { rows, spacing, tableTop, tableH, seats };
-}
-
-/** The cousin's stool at the door end of the table: no side, not adjacent to anyone. */
-export function stoolSeat(L: Layout): Seat {
-  return { i: L.seats.length, row: L.rows, side: 'none', x: TABLE_X + TABLE_W / 2 - 8, y: L.tableTop + L.tableH + 1, zone: 'stool' };
-}
 
 function circleRing(cx: number, cy: number, r: number, thick: number, a: string, b: string) {
   for (let y = cy - r; y <= cy + r; y++) {

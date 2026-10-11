@@ -22,8 +22,7 @@ export function authority(): Keypair | null {
 export const tengeMint = () => (process.env.TENGE_MINT ? new PublicKey(process.env.TENGE_MINT) : null);
 export const collectionAddress = () => process.env.ESTELYGI_COLLECTION ?? null;
 
-export const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+export { json } from './http.js';
 
 export function isWallet(s: unknown): s is string {
   if (typeof s !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s)) return false;
@@ -44,31 +43,5 @@ export function verifySignature(wallet: string, message: string, signatureB64: s
   }
 }
 
-// --- Rate limits: Upstash Redis when configured, else per-instance memory (dev) ----------------
-
-const KV_URL = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-const memory = new Map<string, { n: number; exp: number }>();
-
-/** Adds `amount` to a counter that resets after `ttl` seconds; returns the new total. */
-export async function bump(key: string, amount: number, ttl: number): Promise<number> {
-  if (KV_URL && KV_TOKEN) {
-    const r = await fetch(`${KV_URL}/pipeline`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${KV_TOKEN}`, 'content-type': 'application/json' },
-      body: JSON.stringify([['INCRBY', key, amount], ['EXPIRE', key, ttl, 'NX']]),
-    });
-    const [inc] = await r.json();
-    return Number(inc.result);
-  }
-  const now = Date.now();
-  const cur = memory.get(key);
-  const n = (cur && cur.exp > now ? cur.n : 0) + amount;
-  memory.set(key, { n, exp: cur && cur.exp > now ? cur.exp : now + ttl * 1000 });
-  return n;
-}
-
-/** One-time nonce: false if this signature was already used (replay). */
-export async function useOnce(key: string, ttl: number): Promise<boolean> {
-  return (await bump(`once:${key}`, 1, ttl)) === 1;
-}
+// Rate limits and nonces live in kv.ts (Upstash Redis, or memory in dev).
+export { bump, useOnce } from './kv.js';

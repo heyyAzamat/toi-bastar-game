@@ -39,11 +39,18 @@ always shows up when every seat is taken. The game turns that into rules you can
 | 3 | Kuda (in-laws) in honored seats, facing their pair |
 | 4 | Feuding relatives never next to each other |
 | 5 | Kids by the door (each one runs off once) |
-| 6 | The late cousin from the aul gets the stool |
+| 6 | A late cousin from the aul arrives when the table is full: move someone else to the stool |
 | 7 | Nagashy (mother's kin) next to their own family |
 | 8 | The surprise akim (mayor) on the tor row |
 
-**Host helpers and combos.** Perfect seatings in a row build a combo that pays bonus Kurmet (*Tamasha!* at x5). Once per hall you can pour **Shai** (tea refills everyone's patience), ask the **Azhe** (she points at a perfect seat), or play the **Dombra** (a kui stops time for 7 seconds). Shashu coins float up from happy guests: tap them for tenge.
+**Host helpers and combos.** Perfect seatings in a row build a combo that pays bonus Kurmet (*Tamasha!* at x5). Once per hall you can pour **Shai** (tea refills everyone's patience), ask the **Azhe** (she points at a perfect seat), or play the **Dombra** (a kui stops time for 7 seconds). Shashu coins float up from happy guests: tap them for tenge. Hover a helper (or hold it) to see what it does.
+
+**Twists.** From the second hall on, a hall may come with a twist: an early asaba (55 s), a hot day (patience runs out
+faster), a surprise visit from the akim, or a generous toi (twice the shashu coins). Hard twists multiply the score.
+
+**Quick toi and goals.** Tap an open hall on the start screen to play just that hall. The hall map shows your best
+stars per hall, reputation keeps raising your toishy rank after every hall is open, and the album has a Goals tab.
+The result screen shows the score line by line: kurmet + perfect x5 + stars x100 - scandal / 2, times the twist.
 
 **Two timers** run at once:
 
@@ -61,10 +68,10 @@ Everything is live on **devnet**. The puzzle works without a wallet; Solana carr
 
 | Feature | On-chain? | How |
 |---------|-----------|-----|
-| **TENGE, the shashu token** | Yes | Token-2022 mint with on-chain metadata. Tenge earned in the mini-games is claimed to the player's wallet ([mint](https://explorer.solana.com/address/7QLPA8Yo4bhpMZwJ7nzPF8bqpJaRQPWotjqeupBHDqht?cluster=devnet), [claim tx](https://explorer.solana.com/tx/RuzmMstuFoxVcj3Fjy3UVdHQgE4eCZXnGUzNK8t31eokZUT5qH9i1ZnhtU7f7DpK3ipUQ7jER3Xt44R7ZyJgcud?cluster=devnet)) |
+| **TENGE, the shashu token** | Yes | Token-2022 mint with on-chain metadata. Tenge earned in a toi, as counted by the server's replay, is claimed to the player's wallet ([mint](https://explorer.solana.com/address/7QLPA8Yo4bhpMZwJ7nzPF8bqpJaRQPWotjqeupBHDqht?cluster=devnet), [claim tx](https://explorer.solana.com/tx/RuzmMstuFoxVcj3Fjy3UVdHQgE4eCZXnGUzNK8t31eokZUT5qH9i1ZnhtU7f7DpK3ipUQ7jER3Xt44R7ZyJgcud?cluster=devnet)) |
 | **Guestbook (My Toi)** | Yes | A guest's seat, wish and shashu are **one** transaction to the host: a TENGE `transferChecked` + a Memo. The host's wallet history *is* the guestbook ([example tx](https://explorer.solana.com/tx/4JtQygHrqBHZ2FrsKG6AEaZrn8egsRtE2j7ku4GsCEVPDj2PG2As9Bbbc8RNr6n8o85nDgLhbqB8bKeaqKDURbDX?cluster=devnet)) |
 | **Toi Estelygi NFT** | Yes | A snapshot of the finished table minted as a Metaplex Core asset in one collection, image on Arweave via Irys ([collection](https://explorer.solana.com/address/CrXpxMRYa4Xgm8VDGnmHR7Y8h2mhrEA12WorUePgTHxC?cluster=devnet), [mint tx](https://explorer.solana.com/tx/5fxdqFV7XEaUyh1UVW3AFAje7nBDKW8if4BGdr1475DobLWtdPUzMTj2KRJyZTDkzM1pGKiUCuFuXL8bc8QXcE28?cluster=devnet)) |
-| **Leaderboard** | Not yet | Upstash Redis behind a Vercel Function. Scores are not signed. Moving it on-chain is on the roadmap |
+| **Leaderboard** | Not yet | Upstash Redis behind a Vercel Function. The server replays every hall from the player's action log and writes its own score. Moving it on-chain is on the roadmap |
 
 **Why this needs a blockchain**
 
@@ -92,8 +99,8 @@ Architecture, transaction layouts and trust assumptions: [docs/solana.md](docs/s
 | Solana | `@solana/web3.js`, `@solana/spl-token` (Token-2022), Metaplex Core + Umi, SPL Memo |
 | Storage | Arweave via Irys (NFT image + metadata) |
 | Wallets | Phantom, Solflare (injected providers, mobile deep links) |
-| Backend | Vercel Functions (`api/`): TENGE claims, NFT co-signing, leaderboard |
-| Data | Upstash Redis (leaderboard, rate limits); player profile in `localStorage` |
+| Backend | Vercel Functions (`api/`): verified runs (server replay of `src/sim`), TENGE claims, NFT co-signing, leaderboard |
+| Data | Upstash Redis (runs, tenge ledger, leaderboard, rate limits); profile in `localStorage`, snapshots in IndexedDB |
 
 ## Run locally
 
@@ -101,6 +108,7 @@ Architecture, transaction layouts and trust assumptions: [docs/solana.md](docs/s
 git clone https://github.com/heyyAzamat/toi-bastar-game.git && cd toi-bastar-game
 npm install
 npm run dev        # http://localhost:5173
+npm test           # the 8 rules, perfect seatings for every hall, replay determinism
 ```
 
 That is enough to play. For the Solana features on devnet:
@@ -115,10 +123,10 @@ The variables are listed in [.env.example](.env.example). `npm run build` produc
 ## Roadmap
 
 - **Tournaments:** weekly Daily Toi cups with a TENGE prize pool.
-- **On-chain leaderboard:** signed scores instead of the current Redis board.
+- **On-chain leaderboard:** the replayed scores are server-verified now; next is publishing them on-chain.
 - **Telegram bot:** invite guests to My Toi and get notified about new wishes in chat.
 - **New halls:** kyz uzatu, besik toi and sundet toi, each with its own guests and rules.
-- **Mainnet:** permanent Arweave storage and server-verified tenge earnings.
+- **Mainnet:** permanent Arweave storage.
 
 ## Team
 

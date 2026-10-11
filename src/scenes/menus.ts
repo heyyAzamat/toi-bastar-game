@@ -3,16 +3,20 @@ import { C, rect, box, text, textS, textO, band, vband, panel, img, wrap, measur
 import { Scene, btn, go, type Btn } from '../ui';
 import { sfx, playMusic, setMuted, applause } from '../audio';
 import { guestSprite, STAR, STAR_OFF, COIN, BIGCOIN, CANDIES, type Kind } from '../sprites';
-import { WAVES, dailyChallenge } from '../waves';
+import { WAVES, dailyChallenge, hallSeed, type ModId } from '../sim/rules';
+import { ShashuSim, SHASHU_TIME } from '../sim/mini';
+import { STEP } from '../sim/hall';
 import { run, title as titleFor, unlockedHalls, interlude } from '../run';
 import { t, nm, nextLang } from '../i18n';
-import { profile, saveProfile, addMemento, download, type Memento } from '../storage';
+import { profile, saveProfile, addMemento, download, mementoPng, type Memento } from '../storage';
 import {
   connectWallet, disconnectWallet, shortAddr, hasWallet, isMobile, openInWallet,
 } from '../solana';
-import { fetchBoard, submitScore, type Entry } from '../leaderboard';
+import { fetchBoard, saveLocalScore, type Entry } from '../leaderboard';
+import { verify, startToi } from '../verify';
+import { rankOf, nextRank, goals, ALBUM_KINDS, RANKS } from '../progress';
 import { askName } from '../modal';
-import { claimTenge, onchainTenge, tengeEnabled } from '../tenge';
+import { claimTenge, onchainTenge, tengeEnabled, MAX_CLAIM } from '../tenge';
 import { shareResult } from '../share';
 import { mintEstelygi, dataUrlBytes } from '../toi/nft';
 import { explorerAddr } from '../toi/chain';
@@ -69,9 +73,9 @@ export class StartScene extends Scene {
   }
   build() {
     this.buttons = [
-      btn(20, 140, 140, 22, t('toiBastar'), () => { run.reset(profile.tutorialDone ? 'campaign' : 'tutorial'); go('hall'); }, true),
-      btn(161, 8, 14, 14, '?', () => { run.reset('tutorial'); go('hall'); }),
-      btn(20, 166, 140, 18, t('daily'), () => { run.reset('daily'); go('hall'); }),
+      btn(20, 140, 140, 22, t('toiBastar'), () => startToi(profile.tutorialDone ? 'campaign' : 'tutorial'), true),
+      btn(161, 8, 14, 14, '?', () => startToi('tutorial')),
+      btn(20, 166, 140, 18, t('daily'), () => startToi('daily')),
       btn(20, 188, 68, 16, t('ranking'), () => go('board')),
       btn(92, 188, 68, 16, t('album'), () => go('album')),
       btn(20, 208, 68, 16, t('profile'), () => go('profile')),
@@ -86,6 +90,13 @@ export class StartScene extends Scene {
     ];
   }
   update(dt: number) { this.t += dt; }
+  onDown(x: number, y: number) {
+    if (y < 252 || y >= 274) return;
+    const i = Math.floor((x - 14) / 39);
+    if (i < 0 || i >= WAVES.length || x - 14 - i * 39 >= 36 || !unlockedHalls().includes(i)) return;
+    sfx('click');
+    startToi(profile.tutorialDone ? 'quick' : 'tutorial', i);
+  }
   draw() {
     frameBg();
     // Shanyrak (yurt crown), slowly turning behind the title.
@@ -102,20 +113,24 @@ export class StartScene extends Scene {
     dancers(this.t, 86);
     rect(10, 103, 160, 1, C.gold);
 
-    // Reputation toward the next hall.
+    // Reputation toward the next hall, then toward the next toishy rank.
     textS(t('repN', profile.rep), 20, 108, C.gold);
     textS(`${t('tenge')} ${profile.coins}`, 160, 108, C.cream, 1, 'r');
     const next = WAVES.find((w) => w.rep > profile.rep);
-    const prev = [...WAVES].reverse().find((w) => w.rep <= profile.rep)!;
-    const frac = next ? (profile.rep - prev.rep) / (next.rep - prev.rep) : 1;
+    const nr = nextRank();
+    const [lo, hi] = next
+      ? [[...WAVES].reverse().find((w) => w.rep <= profile.rep)!.rep, next.rep]
+      : [RANKS[rankOf()], nr ?? profile.rep];
+    const frac = hi > lo ? (profile.rep - lo) / (hi - lo) : 1;
     rect(20, 118, 140, 4, C.brown);
     rect(20, 118, Math.round(140 * frac), 4, C.gold);
     if (Math.floor(this.t * 3) % 4 === 0) rect(20 + Math.round(140 * frac) - 1, 118, 1, 4, C.cream);
-    text(next ? t('nextHall', `${hallName(next.idx)} (${next.rep})`) : t('allHalls'), 90, 126, C.tan, 1, 'c');
+    const goal = next ? t('nextHall', `${hallName(next.idx)} (${next.rep})`) : nr ? t('nextRank', `${t('rank' + (rankOf() + 1))} (${nr})`) : t('allHalls');
+    text(goal, 90, 126, C.tan, 1, 'c');
 
     this.drawButtons();
 
-    // Hall map: unlocked halls glow, locked ones show their price.
+    // Hall map: unlocked halls glow and start a quick toi when tapped; locked ones show their price.
     const open = unlockedHalls();
     WAVES.forEach((w, i) => {
       const x = 14 + i * 39;
@@ -123,99 +138,80 @@ export class StartScene extends Scene {
       rect(x, 252, 36, 22, on ? C.red : C.brown);
       box(x, 252, 36, 22, on ? C.gold : C.tan);
       textS(String(i + 1), x + 18, 255, on ? C.gold : C.tan, 1, 'c');
-      text(on ? String(w.seats) : String(w.rep), x + 18, 264, on ? C.cream : C.tan, 1, 'c');
+      if (on) {
+        // Best stars in this hall.
+        const n = profile.hallStars[w.idx] ?? 0;
+        for (let k = 0; k < 3; k++) {
+          rect(x + 8 + k * 8, 265, 5, 5, k < n ? C.gold : C.maroon);
+          if (k < n) rect(x + 9 + k * 8, 266, 1, 1, C.cream);
+        }
+      } else text(String(w.rep), x + 18, 264, C.tan, 1, 'c');
     });
-    text(t('help1'), 90, 283, C.tan, 1, 'c');
-    text(t('help2'), 90, 294, C.tan, 1, 'c');
+    textS(t('rank' + rankOf()), 90, 281, C.gold, 1, 'c');
+    text(t('quickHint'), 90, 293, C.tan, 1, 'c');
     if (profile.wallet) textS(shortAddr(profile.wallet), 90, 304, C.teal, 1, 'c');
   }
 }
 
 // --- Shashu ------------------------------------------------------------------
 
-interface Drop { x: number; y: number; vy: number; kind: 'candy' | 'coin' | 'big'; c: number; sway: number; caught: number }
-
 export class ShashuScene extends Scene {
-  t = 0;
-  drops: Drop[] = [];
-  candies = 0;
-  coins = 0;
-  spawn = 0;
+  sim = new ShashuSim(1);
+  acc = 0;
   pops: { x: number; y: number; s: string; t: number; c: string }[] = [];
   sparks: { x: number; y: number; vx: number; vy: number; t: number; c: string }[] = [];
   confetti = new Confetti();
   done = false;
   enter() {
-    this.t = 0;
-    this.drops = [];
+    // Seeded from the run, so the server can replay the taps and recount the tenge.
+    this.sim = new ShashuSim(hallSeed(run.seed, run.wave));
+    this.acc = 0;
     this.pops = [];
     this.sparks = [];
-    this.candies = 0;
-    this.coins = 0;
     this.done = false;
     this.buttons = [btn(30, 236, 120, 18, t('nextToi'), () => { run.wave++; go('hall'); }, true)];
     this.buttons[0].hidden = true;
     // Jump to the song's big section: shashu is the loudest moment of a toi.
     playMusic('bipyl', 43);
   }
+  get t() { return this.sim.t; }
   update(dt: number) {
-    this.t += dt;
     for (const p of this.pops) { p.t += dt; p.y -= 16 * dt; }
     this.pops = this.pops.filter((p) => p.t < 0.8);
     for (const p of this.sparks) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 100 * dt; }
     this.sparks = this.sparks.filter((p) => p.t < 0.5);
     this.confetti.update(dt);
     if (this.done) return;
-    if (this.t >= 10) {
-      this.done = true;
-      this.drops = [];
-      this.buttons[0].hidden = false;
-      run.candies += this.candies;
-      run.coins += this.coins;
-      profile.coins += this.coins;
-      saveProfile();
-      this.confetti.spawn(60);
-      sfx('fanfare');
-      return;
+    this.acc += dt;
+    while (this.acc >= STEP && !this.sim.done) {
+      this.sim.tick();
+      this.acc -= STEP;
     }
-    this.spawn -= dt;
-    if (this.spawn <= 0) {
-      this.spawn = 0.12 + Math.random() * 0.15;
-      const r = Math.random();
-      this.drops.push({
-        x: 12 + Math.random() * 156, y: 36, vy: 45 + Math.random() * 55,
-        kind: r < 0.06 ? 'big' : r < 0.4 ? 'coin' : 'candy',
-        c: Math.floor(Math.random() * CANDIES.length), sway: Math.random() * 6, caught: 0,
-      });
-    }
-    for (const d of this.drops) {
-      d.y += d.vy * dt;
-      d.x += Math.sin(this.t * 3 + d.sway) * 12 * dt;
-    }
-    this.drops = this.drops.filter((d) => d.y < 300 && !d.caught);
+    if (!this.sim.done) return;
+    this.done = true;
+    this.buttons[0].hidden = false;
+    run.candies += this.sim.candies;
+    run.coins += this.sim.coins;
+    profile.coins += this.sim.coins;
+    saveProfile();
+    verify.shashu(run.wave, this.sim.log);
+    this.confetti.spawn(60);
+    sfx('fanfare');
   }
   onDown(x: number, y: number) {
     if (this.done) return;
     // Generous hit radius for thumbs; nearest drop wins.
-    let best: Drop | null = null;
-    let bd = 14;
-    for (const d of this.drops) {
-      const dist = Math.hypot(d.x - x, d.y - y);
-      if (dist < bd) { bd = dist; best = d; }
-    }
+    const best = this.sim.tap(x, y);
     if (!best) return;
-    best.caught = 1;
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       this.sparks.push({ x: best.x, y: best.y, vx: Math.cos(a) * 40, vy: Math.sin(a) * 40, t: 0, c: best.kind === 'candy' ? C.cream : C.gold });
     }
     if (best.kind === 'candy') {
-      this.candies++;
       this.pops.push({ x: best.x, y: best.y, s: '+1', t: 0, c: C.cream });
       sfx('candy');
     } else {
       const v = best.kind === 'big' ? 5 : 1;
-      this.coins += v;
       this.pops.push({ x: best.x, y: best.y, s: '+' + t('tengeN', v), t: 0, c: C.gold });
       sfx('coin');
     }
@@ -226,9 +222,9 @@ export class ShashuScene extends Scene {
     // Azhe throwing sweets at the top.
     const arm = Math.floor(this.t * 6) % 2;
     img(guestSprite('azhe', 1), 82, 26 - arm, 1);
-    const left = Math.max(0, Math.ceil(10 - this.t));
+    const left = Math.max(0, Math.ceil(SHASHU_TIME - this.t));
     textS(String(left), 166, 28, left <= 3 ? C.red : C.cream, 1, 'r');
-    for (const d of this.drops) {
+    for (const d of this.sim.drops) {
       const im = d.kind === 'candy' ? CANDIES[d.c] : d.kind === 'big' ? BIGCOIN : COIN;
       // Coins spin: squash their width on alternate frames.
       const spin = d.kind !== 'candy' && Math.floor(this.t * 8 + d.sway) % 3 === 0;
@@ -239,14 +235,14 @@ export class ShashuScene extends Scene {
     for (const p of this.pops) textO(p.s, p.x, p.y, p.c, 1, 'c');
     rect(8, 300, 164, 12, C.brown);
     img(CANDIES[0], 12, 303);
-    textS(String(this.candies), 24, 303, C.cream);
+    textS(String(this.sim.candies), 24, 303, C.cream);
     img(COIN, 100, 302);
-    textS(t('tengeN', this.coins), 110, 303, C.gold);
+    textS(t('tengeN', this.sim.coins), 110, 303, C.gold);
     if (this.done) {
       panel(20, 110, 140, 150);
       textO(t('zharaysyn'), 90, 124, C.gold, 2, 'c');
-      textS(t('kempitPlus', this.candies), 90, 148, C.cream, 1, 'c');
-      textS(t('tengePlus', this.coins), 90, 160, C.gold, 1, 'c');
+      textS(t('kempitPlus', this.sim.candies), 90, 148, C.cream, 1, 'c');
+      textS(t('tengePlus', this.sim.coins), 90, 160, C.gold, 1, 'c');
       text(t('tokenNote1'), 90, 180, C.tan, 1, 'c');
       text(t('tokenNote2'), 90, 190, C.tan, 1, 'c');
     } else if (this.t < 1.5) {
@@ -262,6 +258,8 @@ export class ShashuScene extends Scene {
 export interface ResultData {
   wave: number; hall: number; stars: number; title: string; perfect: number; total: number; score: number;
   left: number; kurmet: number; scandal: number; memento: string | null; combo?: number;
+  parts: { kurmet: number; perfect: number; stars: number; scandal: number; mul: number };
+  mod: ModId | null;
 }
 
 export class ResultScene extends Scene {
@@ -288,6 +286,11 @@ export class ResultScene extends Scene {
       run.scores[run.wave] = d.score;
       run.stars[run.wave] = d.stars;
     }
+    // Long-term goals.
+    profile.hallStars[d.hall] = Math.max(profile.hallStars[d.hall] ?? 0, d.stars);
+    profile.bestCombo = Math.max(profile.bestCombo, d.combo ?? 0);
+    if (d.stars && d.perfect === d.total) profile.flawless++;
+    saveProfile();
     if (this.memento && d.stars === 3) addMemento(this.memento);
     this.mintBtn = btn(20, 246, 140, 16, t('mint'), () => this.mint());
     this.mintBtn.hidden = d.stars !== 3;
@@ -310,7 +313,9 @@ export class ResultScene extends Scene {
     }
     const m = this.memento;
     this.mintBtn.disabled = true;
-    const r = await mintEstelygi(dataUrlBytes(m.png), {
+    const png = mementoPng(m);
+    if (!png) return;
+    const r = await mintEstelygi(dataUrlBytes(png), {
       name: `Toi Estelygi: ${m.title}`,
       description: `A ${m.stars}-star toi hosted by ${profile.name} in Toi Bastar!`,
       attributes: [
@@ -363,23 +368,31 @@ export class ResultScene extends Scene {
     if (this.t > 0.4 * Math.max(1, d.stars)) {
       textO(d.title, 90, tScale === 2 ? 76 : 80, d.stars === 3 ? C.gold : d.stars ? C.cream : C.red, tScale, 'c');
     }
-    panel(14, 100, 152, 112);
+    panel(14, 92, 152, 128);
+    // What happened, then the score line by line: kurmet + perfect + stars - scandal, x the hall's twist.
+    const P = d.parts;
     const rows: [string, string, string][] = [
       [t('seatedWell'), `${d.perfect}/${d.total}`, C.cream],
       [t('leftOffended'), String(d.left), d.left ? C.red : C.cream],
-      [t('kurmet'), String(d.kurmet), C.gold],
-      [t('scandal'), `${d.scandal}%`, C.red],
       ...(d.combo ? [[t('bestCombo'), 'X' + d.combo, C.teal] as [string, string, string]] : []),
-      [t('score'), String(Math.round(d.score * Math.min(1, this.t / 1.2))), C.gold],
+      [t('kurmet'), '+' + P.kurmet, C.gold],
+      [t('bonusPerfect'), '+' + P.perfect, C.gold],
+      [t('bonusStars'), '+' + P.stars, d.stars ? C.gold : C.tan],
+      [t('scandalHalf'), String(P.scandal || '-0'), C.red],
+      ...(d.mod && P.mul !== 1 ? [[t('twist'), 'X' + P.mul.toFixed(2), C.teal] as [string, string, string]] : []),
     ];
+    const lh = rows.length > 7 ? 10 : 11;
     rows.forEach(([k, v, c], i) => {
-      const y = 113 + i * (rows.length > 5 ? 12 : 13);
-      text(k, 24, y, C.cream);
-      textS(v, 156, y, c, 1, 'r');
+      const y = 103 + i * lh;
+      text(k, 22, y, C.cream);
+      textS(v, 158, y, c, 1, 'r');
     });
-    if (d.stars === 3) text(t('estelygiSaved'), 90, 192, C.gold, 1, 'c');
-    else if (d.stars === 0) text(t('guestsWentHome'), 90, 192, C.tan, 1, 'c');
-    else text(t('starsUnlock'), 90, 192, C.tan, 1, 'c');
+    const sy = 103 + rows.length * lh + 1;
+    rect(22, sy, 136, 1, C.gold);
+    textS(t('score'), 22, sy + 4, C.gold);
+    textS(String(Math.round(d.score * Math.min(1, this.t / 1.2))), 158, sy + 4, C.gold, 1, 'r');
+    const note = d.stars === 3 ? t('estelygiSaved') : d.stars === 0 ? t('noStarsNoScore') : t('starsUnlock');
+    text(note, 90, 208, d.stars === 3 ? C.gold : C.cream, 1, 'c');
     this.drawButtons();
     if (this.status) textO(this.status, 90, 290, C.cream, 1, 'c');
     this.confetti.draw();
@@ -394,6 +407,7 @@ export class FinalScene extends Scene {
   isBest = false;
   repGain = 0;
   newHalls: number[] = [];
+  status = '';
   t = 0;
   confetti = new Confetti();
   enter() {
@@ -412,13 +426,20 @@ export class FinalScene extends Scene {
     if (run.mode === 'daily') {
       const best = profile.daily?.key === run.dailyKey ? profile.daily.best : 0;
       profile.daily = { key: run.dailyKey, best: Math.max(best, this.total) };
-      submitScore(this.total, this.starSum, 'daily-' + run.dailyKey);
-    } else submitScore(this.total, this.starSum, 'all');
+      profile.dailies++;
+    }
+    saveLocalScore(this.total, this.starSum, run.mode === 'daily' ? 'daily-' + run.dailyKey : 'all');
     saveProfile();
+    // The global board takes the server's replayed total, not ours.
+    this.status = '';
+    verify.finish().then((r) => {
+      this.status = r ? t('verified') : t('unverified');
+      if (r && r.total !== this.total) console.warn('[verify] total differs', { local: this.total, server: r.total });
+    });
     this.buttons = [
       btn(20, 232, 140, 20, t('ranking'), () => go('board', run.mode === 'daily' ? 'daily' : 'all'), true),
-      btn(20, 258, 68, 16, t('newToi'), () => { run.reset(run.mode === 'daily' ? 'daily' : 'campaign'); go('hall'); }),
-      btn(92, 258, 68, 16, t('share'), () => shareResult({ head: run.mode === 'daily' ? t('daily') : t('totalScore'), title: titleFor(Math.max(1, Math.round(this.starSum / run.halls.length))), stars: Math.round(this.starSum / run.halls.length), score: this.total, memento: profile.mementos.at(-1)?.png })),
+      btn(20, 258, 68, 16, t('newToi'), () => startToi(run.mode === 'daily' ? 'daily' : run.mode === 'quick' ? 'quick' : 'campaign', run.halls[0])),
+      btn(92, 258, 68, 16, t('share'), () => shareResult({ head: run.mode === 'daily' ? t('daily') : t('totalScore'), title: titleFor(Math.max(1, Math.round(this.starSum / run.halls.length))), stars: Math.round(this.starSum / run.halls.length), score: this.total, memento: mementoPng(profile.mementos.at(-1)) })),
       btn(20, 280, 140, 16, t('menu'), () => go('start')),
     ];
     this.confetti = new Confetti();
@@ -454,6 +475,7 @@ export class FinalScene extends Scene {
     const blink = Math.floor(this.t * 3) % 2;
     if (this.newHalls.length && blink) textO(t('newHall', hallName(this.newHalls[0])), 90, 214, C.cream, 1, 'c');
     else if (this.isBest && blink) textO(t('newBest'), 90, 214, C.red, 1, 'c');
+    if (this.status) text(this.status, 90, y + 59, C.tan, 1, 'c');
     this.drawButtons();
     this.confetti.draw();
   }
@@ -522,19 +544,26 @@ export class BoardScene extends Scene {
 export class ProfileScene extends Scene {
   status = '';
   onchain: number | null = null;
+  verified: number | null = null; // tenge the server counted from replayed tois: the most a claim can take
   enter() {
     this.status = '';
+    this.verified = null;
     this.build();
     this.refreshBalance();
     playMusic('bipyl');
   }
+  /** What a claim can mint now: earned here, counted by the server, and under the per-claim cap. */
+  claimable() {
+    return Math.max(0, Math.min(MAX_CLAIM, Math.floor(profile.coins), this.verified ?? 0));
+  }
   refreshBalance() {
     this.onchain = null;
+    verify.balance().then((n) => { this.verified = n; this.build(); });
     if (profile.wallet && tengeEnabled()) onchainTenge(profile.wallet).then((n) => { this.onchain = n; }).catch(() => {});
   }
   async claim() {
     this.status = t('signing');
-    const r = await claimTenge();
+    const r = await claimTenge(this.claimable());
     if (r.ok) {
       this.status = t('claimed', r.amount);
       sfx('coin');
@@ -556,7 +585,7 @@ export class ProfileScene extends Scene {
       ...(connected
         ? [
           btn(20, 152, 68, 16, t('disconnect'), async () => { await disconnectWallet(); this.build(); }),
-          Object.assign(btn(92, 152, 68, 16, t('claim', Math.min(200, profile.coins)), () => this.claim(), true), { disabled: !tengeEnabled() || profile.coins < 1 }),
+          Object.assign(btn(92, 152, 68, 16, t('claim', this.claimable()), () => this.claim(), true), { disabled: !tengeEnabled() || this.claimable() < 1 }),
         ]
         : deeplink
           ? [
@@ -571,7 +600,7 @@ export class ProfileScene extends Scene {
       btn(20, 290, 140, 16, t('back'), () => go('start')),
     ];
     profile.mementos.slice(-2).reverse().forEach((m, i) => {
-      this.buttons.push(btn(130, 228 + i * 20, 34, 14, 'PNG', () => download(m.png, `toi-estelygi-${m.date}.png`)));
+      this.buttons.push(btn(130, 228 + i * 20, 34, 14, 'PNG', () => { const png = mementoPng(m); if (png) download(png, `toi-estelygi-${m.date}.png`); }));
     });
   }
   async connect(kind: 'phantom' | 'solflare') {
@@ -598,10 +627,11 @@ export class ProfileScene extends Scene {
       [t('bestScore'), String(profile.best)],
       [t('stars'), String(profile.stars)],
       [t('toisHosted'), String(profile.games)],
+      [t('verifiedTenge'), this.verified === null ? '-' : String(this.verified)],
     ];
     statRows.forEach(([k, v], i) => {
-      text(k, 20, 53 + i * 10, C.cream);
-      textS(v, 160, 53 + i * 10, C.gold, 1, 'r');
+      text(k, 20, 52 + i * 9, C.cream);
+      textS(v, 160, 52 + i * 9, C.gold, 1, 'r');
     });
 
     textS(t('wallet'), 90, 121, C.gold, 1, 'c');
@@ -630,9 +660,9 @@ export class ProfileScene extends Scene {
   }
 }
 
-// --- Aul album: every guest type the player has met ----------------------------
+// --- Aul album: every guest type the player has met, and the toishy goals ----------
 
-const ALBUM: Kind[] = ['aksakal', 'azhe', 'kuda', 'kudagi', 'zhigit', 'kelin', 'nagashy', 'child', 'renzhigen', 'bauyr', 'akim', 'asaba'];
+const ALBUM: Kind[] = [...ALBUM_KINDS];
 
 const silhouettes = new Map<Kind, HTMLCanvasElement>();
 function silhouette(k: Kind) {
@@ -650,16 +680,26 @@ function silhouette(k: Kind) {
 
 export class AlbumScene extends Scene {
   sel: Kind | null = null;
+  tab: 'guests' | 'goals' = 'guests';
   t = 0;
   enter() {
     this.sel = null;
-    this.buttons = [btn(20, 290, 140, 16, t('back'), () => go('start'))];
+    this.tab = 'guests';
+    this.build();
+  }
+  build() {
+    const tab = btn(92, 290, 68, 16, t(this.tab === 'guests' ? 'goalsTab' : 'guestsTab'), () => {
+      this.tab = this.tab === 'guests' ? 'goals' : 'guests';
+      this.build();
+    }, true);
+    this.buttons = [btn(20, 290, 68, 16, t('back'), () => go('start')), tab];
   }
   update(dt: number) { this.t += dt; }
   cell(i: number) {
     return { x: 12 + (i % 3) * 53, y: 36 + Math.floor(i / 3) * 52 };
   }
   onDown(x: number, y: number) {
+    if (this.tab !== 'guests') return;
     ALBUM.forEach((k, i) => {
       const c = this.cell(i);
       if (x >= c.x && x < c.x + 50 && y >= c.y && y < c.y + 50) {
@@ -668,8 +708,34 @@ export class AlbumScene extends Scene {
       }
     });
   }
+  drawGoals() {
+    textO(t('goalsTitle'), 90, 7, C.gold, measure(t('goalsTitle'), 2) <= 160 ? 2 : 1, 'c');
+    const list = goals();
+    text(t('collected', `${list.filter((g) => g.have >= g.need).length}/${list.length}`), 90, 25, C.cream, 1, 'c');
+    list.forEach((g, i) => {
+      const y = 36 + i * 31;
+      const done = g.have >= g.need;
+      rect(10, y, 160, 28, done ? C.red : C.brown);
+      box(10, y, 160, 28, done ? C.gold : C.tan);
+      // Check box.
+      box(15, y + 9, 10, 10, done ? C.gold : C.tan);
+      if (done) { rect(17, y + 13, 2, 2, C.cream); rect(19, y + 15, 2, 2, C.cream); rect(21, y + 11, 2, 4, C.cream); }
+      textS(t('ach_' + g.id), 30, y + 4, done ? C.gold : C.cream);
+      text(t('ach_' + g.id + '_d'), 30, y + 15, done ? C.cream : C.tan);
+      if (!done) {
+        textS(`${g.have}/${g.need}`, 165, y + 4, C.tan, 1, 'r');
+        rect(30, y + 24, 132, 2, C.maroon);
+        rect(30, y + 24, Math.round((132 * g.have) / g.need), 2, C.gold);
+      }
+    });
+  }
   draw() {
     frameBg();
+    if (this.tab === 'goals') {
+      this.drawGoals();
+      this.drawButtons();
+      return;
+    }
     textO(t('albumTitle'), 90, 7, C.gold, measure(t('albumTitle'), 2) <= 160 ? 2 : 1, 'c');
     const got = ALBUM.filter((k) => profile.album[k]).length;
     text(t('collected', `${got}/${ALBUM.length}`), 90, 25, C.cream, 1, 'c');

@@ -1,4 +1,5 @@
 // Chiptune dombra: a two-string pluck (melody + fourth-tuned drone) and a dauylpaz thump.
+import { BETASHAR_BPM } from './sim/mini';
 
 let ac: AudioContext | null = null;
 let master: GainNode;
@@ -204,7 +205,7 @@ export function playMusic(t: Track, from?: number) {
   } else startScheduler();
 }
 
-export const BETASHAR_BPM = 100;
+export { BETASHAR_BPM } from './sim/mini';
 
 /** Audio-clock time (s) and when the current chiptune's step 0 played; null before the first tap. */
 export function musicClock(): { now: number; start: number } | null {

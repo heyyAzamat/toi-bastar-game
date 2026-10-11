@@ -1,5 +1,6 @@
-// TENGE on devnet: a Token-2022 token (0 decimals). Tenge earned in Shashu/Betashar is kept locally until
-// the player claims it; the server mints it to their wallet (api/tenge-claim).
+// TENGE on devnet: a Token-2022 token (0 decimals). Tenge earned in tois is kept locally until the player claims
+// it; the server mints it to their wallet (api/tenge-claim), but never more than it counted itself by replaying
+// the player's verified tois (api/run).
 import { activeProvider } from './solana';
 import { profile, saveProfile } from './storage';
 
@@ -24,11 +25,11 @@ export async function onchainTenge(wallet: string): Promise<number> {
 
 export type ClaimResult = { ok: true; sig: string; amount: number } | { ok: false; reason: 'no-wallet' | 'nothing' | 'off' | 'limit' | 'rejected' | 'error'; detail?: string };
 
-export async function claimTenge(): Promise<ClaimResult> {
+export async function claimTenge(want: number): Promise<ClaimResult> {
   const p = activeProvider();
   if (!TENGE_MINT) return { ok: false, reason: 'off' };
   if (!p || !profile.wallet) return { ok: false, reason: 'no-wallet' };
-  const amount = Math.min(MAX_CLAIM, Math.floor(profile.coins));
+  const amount = Math.min(MAX_CLAIM, Math.floor(profile.coins), Math.floor(want));
   if (amount < 1) return { ok: false, reason: 'nothing' };
   const ts = Date.now();
   let sigB64: string;
@@ -45,10 +46,11 @@ export async function claimTenge(): Promise<ClaimResult> {
     const r = await fetch('/api/tenge-claim', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ wallet: profile.wallet, amount, ts, signature: sigB64 }),
+      body: JSON.stringify({ wallet: profile.wallet, amount, ts, signature: sigB64, key: profile.key }),
     });
     const body = await r.json().catch(() => ({}));
     if (r.status === 429) return { ok: false, reason: 'limit' };
+    if (r.status === 402) return { ok: false, reason: 'nothing' };
     if (r.status === 503) return { ok: false, reason: 'off' };
     if (!r.ok) return { ok: false, reason: 'error', detail: body.detail ?? body.error ?? `HTTP ${r.status}` };
     profile.coins -= amount;

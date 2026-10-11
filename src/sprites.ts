@@ -5,8 +5,8 @@ const PAL: Record<string, string> = {
   k: C.brown, w: C.cream, g: C.gold, r: C.red, m: C.maroon, t: C.teal, s: C.tan, n: C.green,
 };
 
-export type Kind = 'aksakal' | 'azhe' | 'kuda' | 'kudagi' | 'zhigit' | 'kelin' | 'child' | 'akim' | 'asaba'
-  | 'nagashy' | 'renzhigen' | 'bauyr';
+import type { Kind } from './sim/rules';
+export type { Kind };
 
 const ADULT = [
   '................',

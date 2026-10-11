@@ -2,7 +2,9 @@
 // A ring closes in on the bride; tap when it meets the gold circle. The veil lifts at the end.
 import { C, rect, text, textS, textO, band, vband, panel, img, measure } from '../gfx';
 import { Scene, btn, go } from '../ui';
-import { sfx, playMusic, applause, musicClock, BETASHAR_BPM } from '../audio';
+import { sfx, playMusic, applause, musicClock } from '../audio';
+import { BetasharSim, QUARTER, GOOD, type Judge } from '../sim/mini';
+import { verify } from '../verify';
 import { guestSprite, COIN, type Kind } from '../sprites';
 import { run } from '../run';
 import { t, nm } from '../i18n';
@@ -13,17 +15,12 @@ const RELATIVES: [Kind, string][] = [
   ['zhigit', 'ҚАЙНАҒА'], ['kelin', 'ЖЕҢГЕ'], ['aksakal', 'ҮЛКЕН АТА'], ['azhe', 'ҮЛКЕН ӘЖЕ'],
   ['nagashy', 'НАҒАШЫ'], ['kelin', 'АБЫСЫН'], ['zhigit', 'ҚАЙЫН ІНІ'], ['child', 'БАЛДЫЗ'],
 ];
-const QUARTER = 60 / BETASHAR_BPM;
-const LEAD_BEATS = 4; // one bar of drum before the first bow
-const GAP_BEATS = 2; // a bow every half note
-const PERFECT = 0.09;
-const GOOD = 0.18;
+const GAP_BEATS = 2; // a bow every half note (timing lives in BetasharSim)
 const BRIDE_X = 66;
 const BRIDE_Y = 150;
 const RING_CX = BRIDE_X + 24;
 const RING_CY = BRIDE_Y + 22;
 
-type Judge = 'perfect' | 'good' | 'miss';
 
 function ring(cx: number, cy: number, r: number, c: string, dots = 48) {
   for (let i = 0; i < dots; i++) {
@@ -33,12 +30,11 @@ function ring(cx: number, cy: number, r: number, c: string, dots = 48) {
 }
 
 export class BetasharScene extends Scene {
-  notes: { at: number; judged: Judge | null }[] = [];
+  sim = new BetasharSim();
   start = 0;
   fallback = 0; // clock when the audio clock isn't available (muted before any tap)
   last: { j: Judge; t: number } | null = null;
   bowT = 0;
-  coins = 0;
   done = false;
   doneT = 0;
   pops: { x: number; y: number; t: number }[] = [];
@@ -48,10 +44,9 @@ export class BetasharScene extends Scene {
     const mc = musicClock();
     this.fallback = 0;
     this.start = mc ? mc.start : 0;
-    this.notes = RELATIVES.map((_, i) => ({ at: this.start + (LEAD_BEATS + i * GAP_BEATS) * QUARTER, judged: null }));
+    this.sim = new BetasharSim();
     this.last = null;
     this.bowT = 0;
-    this.coins = 0;
     this.done = false;
     this.doneT = 0;
     this.pops = [];
@@ -59,17 +54,17 @@ export class BetasharScene extends Scene {
     this.buttons[0].hidden = true;
   }
 
+  /** Seconds since the song started (the sim's clock). */
   now() {
     const mc = musicClock();
-    return mc ? mc.now : this.start + this.fallback;
+    return (mc ? mc.now : this.start + this.fallback) - this.start;
   }
 
-  current() {
-    return this.notes.findIndex((n) => !n.judged);
-  }
+  get notes() { return this.sim.notes; }
+  get coins() { return this.sim.coins; }
+  current() { return this.sim.current(); }
 
-  judge(i: number, j: Judge) {
-    this.notes[i].judged = j;
+  show(j: Judge) {
     this.last = { j, t: 0 };
     if (j === 'miss') {
       sfx('bad');
@@ -77,19 +72,17 @@ export class BetasharScene extends Scene {
     }
     this.bowT = 0.3;
     const gain = j === 'perfect' ? 3 : 1;
-    this.coins += gain;
     for (let k = 0; k < gain; k++) this.pops.push({ x: 90 + (k - 1) * 8, y: 60, t: -k * 0.08 });
     sfx(j === 'perfect' ? 'good' : 'candy');
   }
 
   onDown() {
-    if (this.done) return;
-    const i = this.current();
-    if (i < 0) return;
-    const diff = this.now() - this.notes[i].at;
-    if (Math.abs(diff) <= PERFECT) this.judge(i, 'perfect');
-    else if (Math.abs(diff) <= GOOD) this.judge(i, 'good');
+    if (this.done || this.sim.over) return;
+    const missed = this.sim.advance(this.now());
+    if (missed) this.show('miss');
     // Taps far from any bow are ignored: no penalty for nervous fingers.
+    const j = this.sim.tap(this.now());
+    if (j) this.show(j);
   }
 
   update(dt: number) {
@@ -102,9 +95,8 @@ export class BetasharScene extends Scene {
       this.doneT += dt;
       return;
     }
-    const i = this.current();
-    if (i >= 0 && this.now() - this.notes[i].at > GOOD) this.judge(i, 'miss');
-    if (this.current() < 0 && this.now() > this.notes[this.notes.length - 1].at + 0.8) this.finish();
+    if (this.sim.advance(this.now())) this.show('miss');
+    if (this.sim.over && this.now() > this.sim.end) this.finish();
   }
 
   finish() {
@@ -113,6 +105,7 @@ export class BetasharScene extends Scene {
     run.coins += this.coins;
     profile.coins += this.coins;
     saveProfile();
+    verify.betashar(run.wave, this.sim.log);
     this.buttons[0].hidden = false;
     playMusic('bipyl', 43);
     applause(3);

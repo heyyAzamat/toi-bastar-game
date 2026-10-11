@@ -4,7 +4,7 @@ import { register, go, current, transitioning, updateTransition, drawTransition 
 import { unlockAudio, setMuted } from './audio';
 import { HallScene } from './scenes/hall';
 import { SplashScene, StartScene, ShashuScene, ResultScene, FinalScene, BoardScene, ProfileScene, AlbumScene } from './scenes/menus';
-import { profile } from './storage';
+import { profile, loadMementos } from './storage';
 import { restoreWallet } from './solana';
 import { input, run } from './run';
 import { HostScene, GuestbookScene, InviteScene } from './scenes/toi';
@@ -68,10 +68,15 @@ for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
 
 cv.addEventListener('pointerdown', (e) => {
   cv.setPointerCapture(e.pointerId);
-  input.liftY = e.pointerType === 'touch' ? 16 : 6;
+  input.touch = e.pointerType === 'touch';
+  input.liftY = input.touch ? 16 : 6;
   if (!transitioning()) current.down(...toGame(e));
 });
-cv.addEventListener('pointermove', (e) => current.move(...toGame(e)));
+cv.addEventListener('pointermove', (e) => {
+  // A mouse hovering before its first click should already get hover tooltips.
+  input.touch = e.pointerType === 'touch';
+  current.move(...toGame(e));
+});
 cv.addEventListener('pointerup', (e) => current.up(...toGame(e)));
 cv.addEventListener('pointercancel', (e) => current.up(...toGame(e)));
 cv.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -118,6 +123,7 @@ async function boot() {
   setMuted(profile.muted);
   applyCosmetics();
   restoreWallet();
+  loadMementos();
   const devWave = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('wave')) : 0;
   const devScene = import.meta.env.DEV ? new URLSearchParams(location.search).get('scene') : null;
   if (devScene) {

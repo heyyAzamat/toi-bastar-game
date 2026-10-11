@@ -9,6 +9,7 @@ import { profile, saveProfile, download } from '../storage';
 import { connectWallet, shortAddr, hasWallet, isMobile, openInWallet } from '../solana';
 import { askText } from '../modal';
 import { claimTenge, onchainTenge, tengeEnabled } from '../tenge';
+import { verify } from '../verify';
 import { makeInvite, inviteUrl, telegramUrl, showDate, todayIso, type ToiInvite } from '../toi/link';
 import { fetchWishes, seating, sendWish, airdrop, explorerTx, explorerAddr, type Wish } from '../toi/chain';
 import { ToiTable, AVATARS, avatarSprite } from '../toi/table';
@@ -368,8 +369,9 @@ export class InviteScene extends Scene {
   }
   async claim() {
     this.status = t('signing');
-    const r = await claimTenge();
-    this.status = r.ok ? t('claimed', r.amount) : r.reason === 'limit' ? t('claimLimit') : t('sendFailed', (r as any).detail ?? r.reason);
+    // The server mints only what it counted from verified tois.
+    const r = await claimTenge((await verify.balance()) ?? 0);
+    this.status = r.ok ? t('claimed', r.amount) : r.reason === 'limit' ? t('claimLimit') : r.reason === 'nothing' ? t('notEnough') : t('sendFailed', (r as any).detail ?? r.reason);
     this.balance = null;
     this.build();
   }

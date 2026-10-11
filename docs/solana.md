@@ -26,11 +26,13 @@ that involve value or other people.
 into the wallet's in-app browser. web3.js and Metaplex are lazy-loaded, so the game itself stays light.
 
 ## TENGE (shashu token)
-- Tenge earned in Shashu / Betashar is kept in the local profile until the player presses **CLAIM**.
+- Tenge earned in a toi (shashu coins in the halls, Shashu, Betashar) is kept in the local profile until the player presses **CLAIM**.
 - The wallet signs the message `Toi Bastar: claim N TENGE to <wallet> at <ts>`.
 - `api/tenge-claim.ts` verifies the signature, rejects stale timestamps (5 min) and replays, applies caps
   (200 per claim, 300 per wallet per day) and mints to the player's associated token account.
-- Earnings are counted on the client, which is why the caps exist. This is a known trust gap, not a solved one.
+- A claim can only mint tenge the server counted itself (see *Verified runs* below): `api/run` credits a balance
+  keyed by the hash of a random secret in the player's profile, and the claim spends from it (HTTP 402 when it is
+  short). The client's own counter only matters for the Bazaar.
 
 ## My Toi: invites and the on-chain guestbook
 - **Host:** Profile -> MY TOI -> CREATE A TOI. The invite link carries the toi (id, name, date, host name,
@@ -60,11 +62,27 @@ into the wallet's in-app browser. web3.js and Metaplex are lazy-loaded, so the g
 - Irys **devnet** uploads are temporary (kept for weeks, not forever). For mainnet, point `SOLANA_RPC` at mainnet
   and the uploader switches to the permanent Irys node.
 
+## Verified runs (`api/run`)
+The rules, the clock and the score live in `src/sim/` as a deterministic simulation: fixed 60 Hz ticks, seeded
+randomness, no DOM. The browser and the server run the same code.
+
+1. **start**: the server picks the seed (the daily toi uses the date's seed) and stores the run in Redis.
+2. After each hall the client sends its action log (`place` / `tool` / `gift`, each stamped with its tick).
+   The server replays it and keeps its own score, stars and shashu coins.
+3. After each Shashu it sends the taps (tick, x, y), after each Betashar the tap times; both are replayed.
+4. **finish**: the server adds up its numbers and writes the leaderboard. Clients can no longer post scores
+   (`POST /api/leaderboard` answers 410).
+
+Checks: steps must come in play order, a run belongs to the key that started it, and on Vercel real time between
+steps must cover the simulated time. `tests/replay.test.ts` asserts that a replay reproduces the client's result.
+
+What this does not stop: a bot that plays well. The seed is known once a hall starts, so a solver can still post a
+strong log, and a Betashar log can claim perfect timing (at most 36 tenge). Rep and hall unlocks stay on the device.
+
 ## Leaderboard (off-chain)
-`api/leaderboard.ts` is a Vercel Function (GET top 20 / POST score) on Upstash Redis REST.
+`api/leaderboard.ts` (GET top 20) reads Upstash Redis; only `api/run` writes to it.
 Boards: `all` and `daily-YYYY-MM-DD` (daily boards expire after 8 days).
-Without Redis, and in `npm run dev`, the client falls back to a per-device board.
-Scores are validated for shape and range but **not signed and not on-chain**, so they can be spoofed.
+Without Redis the client keeps a per-device board, and tois are played unverified.
 
 ## Setup from scratch
 1. `node scripts/setup-solana.mjs` creates `.secrets/authority.json`. Fund that address with about 0.3 devnet SOL

@@ -1,17 +1,21 @@
 // The gameplay scene: seat arriving guests before the asaba (toastmaster) arrives.
+// The rules, the clock and the score live in HallSim (src/sim/hall.ts); this scene draws them.
 import { C, rect, box, text, textS, textO, band, bar, panel, img, wrap, canvas, setCtx, ctx, measure, Confetti } from '../gfx';
 import { Scene, btn, go, type Btn } from '../ui';
 import { sfx, playMusic, setIntensity, applause } from '../audio';
 import {
   HAND, RING, BOLT, HOUSE, STOOL, SMILE, TICK, CROSS, FAMILY, ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, COIN, KESE, DOMBRA, NOTE, guestSprite,
 } from '../sprites';
-import { WAVE_TIME, makeGuests, tutorialGuests, isElder, isKuda, isHonored, type Guest, type WaveDef } from '../waves';
-import { layout, renderBackground, stoolSeat, TABLE_X, TABLE_W, type Layout } from '../hall';
+import { isElder, isKuda, hallSeed, modMul, type Guest, type WaveDef } from '../sim/rules';
+import { HallSim, STEP, TOOLS, DOMBRA_TIME, type Tool, type Gift, type SimEvent } from '../sim/hall';
+import { renderBackground, TABLE_X, TABLE_W } from '../hall';
 import { run, title as titleFor, input } from '../run';
+import { verify } from '../verify';
 import { t, nm } from '../i18n';
 import { profile, saveProfile } from '../storage';
 
 const reason = (v: string) => t('r_' + v);
+const spr = (g: Guest) => guestSprite(g.kind, g.look);
 
 const Q_Y = 259;
 const qSlotX = (i: number) => 6 + i * 40;
@@ -21,8 +25,6 @@ const DOOR_Y = 234;
 interface Floater { s: string; x: number; y: number; c: string; t: number }
 /** Soft particles: table steam, landing dust, angry smoke, tea steam. */
 interface Puff { x: number; y: number; vx: number; vy: number; t: number; life: number; c: string; s: number; a: number }
-/** A shashu coin floating up from a happy guest: tap it before it fades. */
-interface Gift { x: number; y: number; t: number; seed: number }
 interface Note { x: number; y: number; t: number; vx: number }
 interface Spark { x: number; y: number; vx: number; vy: number; t: number; c: string }
 interface Drag { g: Guest; from: number; x: number; y: number; sx: number; sy: number; moved: boolean; was: boolean }
@@ -32,30 +34,19 @@ interface Walker { sprite: HTMLCanvasElement; x0: number; y0: number; x1: number
 type Phase = 'intro' | 'play' | 'rules' | 'pause' | 'asaba' | 'fail' | 'done' | 'tutdone';
 
 /** Host helpers: one charge each per hall, in the panel on the left. */
-type Tool = 'tea' | 'advice' | 'dombra';
-const TOOLS: Tool[] = ['tea', 'advice', 'dombra'];
 const TOOL_X = 4;
 const toolY = (i: number) => 140 + i * 23;
-const DOMBRA_TIME = 7;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 
 export class HallScene extends Scene {
+  sim!: HallSim;
   w!: WaveDef;
-  L!: Layout;
   bg!: HTMLCanvasElement;
-  guests: Guest[] = [];
-  occ: number[] = [];
-  queue: Guest[] = [];
-  outside: Guest[] = [];
+  acc = 0; // real time not yet turned into sim ticks
   qx = new Map<number, number>();
   hops = new Map<number, number>();
   phase: Phase = 'intro';
-  elapsed = 0;
   clock = 0;
-  kurmet = 0;
-  maxK = 1;
-  scandal = 0;
-  timeBonus = 0;
   drag: Drag | null = null;
   hover = -1;
   selected: Guest | null = null;
@@ -68,29 +59,18 @@ export class HallScene extends Scene {
   azheLine: { s: string; t: number } | null = null;
   phaseT = 0;
   shot: HTMLCanvasElement | null = null;
-  pairBonus = new Set<number>();
-  hints = new Map<number, boolean>(); // seat -> ok for the focused guest
-  tutTargets: number[] = []; // tutorial: the seat each scripted guest should take
   tutLine = '';
   startBtn!: Btn;
   rulesBtn!: Btn;
   closeBtn!: Btn;
   pauseBtn!: Btn;
   pauseBtns: Btn[] = [];
-  // Combo: perfect seatings in a row.
-  combo = 0;
-  bestCombo = 0;
   comboPop = 0;
-  // Host helpers.
-  charges: Record<Tool, number> = { tea: 1, advice: 1, dombra: 1 };
   toolDown: Tool | null = null;
-  dombraT = 0;
-  advice: { g: Guest; seat: number; t: number } | null = null;
+  toolHover: Tool | null = null; // mouse over a helper: show its tooltip
   // Juice.
   puffs: Puff[] = [];
-  gifts: Gift[] = [];
   notes: Note[] = [];
-  nextGift = 0;
   steamT = 0;
   smokeT = 0;
   noteT = 0;
@@ -102,28 +82,32 @@ export class HallScene extends Scene {
   countPop: { n: number; t: number } | null = null;
   confetti = new Confetti();
 
+  // The simulation's state, read by the drawing code.
+  get L() { return this.sim.L; }
+  get guests() { return this.sim.guests; }
+  get occ() { return this.sim.occ; }
+  get queue() { return this.sim.queue; }
+  get outside() { return this.sim.outside; }
+  get kurmet() { return this.sim.kurmet; }
+  get maxK() { return this.sim.maxK; }
+  get scandal() { return this.sim.scandal; }
+  get combo() { return this.sim.combo; }
+  get charges() { return this.sim.charges; }
+  get dombraT() { return this.sim.dombraT; }
+  get advice() { return this.sim.advice; }
+  get gifts() { return this.sim.gifts; }
+  get tutorial() { return run.mode === 'tutorial'; }
+
   enter() {
+    const tut = this.tutorial;
+    const seed = hallSeed(run.seed, run.wave);
     this.w = run.hall();
-    this.L = layout(this.w);
-    const seed = run.seed + run.wave * 7919;
-    this.bg = renderBackground(this.w, this.L, seed);
-    const tut = run.mode === 'tutorial';
-    if (tut) {
-      const script = tutorialGuests();
-      this.guests = script.guests;
-      this.tutTargets = script.targets;
-      this.tutLine = t('tut1');
-    } else this.guests = makeGuests(this.w, seed);
-    this.occ = this.L.seats.map(() => -1);
-    this.queue = [];
-    this.outside = [];
+    this.sim = new HallSim(this.w, seed, tut);
+    this.bg = renderBackground(this.w, this.sim.L, seed);
+    this.tutLine = tut ? t('tut1') : '';
+    this.acc = 0;
     this.qx.clear();
     this.hops.clear();
-    this.elapsed = 0;
-    this.kurmet = 0;
-    this.scandal = 0;
-    this.timeBonus = 0;
-    this.maxK = this.guests.length * 20 + new Set(this.guests.filter((g) => g.pair).map((g) => g.pair)).size * 10;
     this.drag = null;
     this.selected = null;
     this.floaters = [];
@@ -132,19 +116,11 @@ export class HallScene extends Scene {
     this.banner = null;
     this.azheLine = null;
     this.shot = null;
-    this.pairBonus.clear();
     this.phase = 'intro';
-    this.combo = 0;
-    this.bestCombo = 0;
     this.comboPop = 0;
-    this.charges = { tea: 1, advice: 1, dombra: 1 };
     this.toolDown = null;
-    this.dombraT = 0;
-    this.advice = null;
     this.puffs = [];
-    this.gifts = [];
     this.notes = [];
-    this.nextGift = 10;
     this.kShown = 0;
     this.sShown = 0;
     this.flash = 0;
@@ -161,6 +137,8 @@ export class HallScene extends Scene {
       this.azheQueue = fresh.map((r) => t('rule' + r));
       if (!profile.seenRules.length) this.azheQueue.push(t('howTo'));
       if (!profile.seenTools) this.azheQueue.push(t('toolsHow'));
+      // Today's twist, every time: it changes from toi to toi.
+      if (this.w.mod) this.azheQueue.push(t('modSay_' + this.w.mod));
       profile.seenTools = true;
       profile.seenRules.push(...fresh);
       saveProfile();
@@ -197,65 +175,8 @@ export class HallScene extends Scene {
     this.showBanner(t('toiBastar'), C.gold);
   }
 
-  byId(id: number) { return this.guests[id]; }
-
-  partner(g: Guest) {
-    return g.pair ? this.guests.find((o) => o !== g && o.pair === g.pair) : undefined;
-  }
-
-  adjacent(a: number, b: number) {
-    const sa = this.L.seats[a];
-    const sb = this.L.seats[b];
-    return sa.side !== 'none' && sa.side === sb.side && Math.abs(sa.row - sb.row) === 1;
-  }
-
-  check(g: Guest, i: number): string[] {
-    const s = this.L.seats[i];
-    const R = this.w.rules;
-    const v: string[] = [];
-    if (R.includes(2) && g.side !== 'none' && s.side !== 'none' && g.side !== s.side) v.push('side');
-    if (R.includes(1)) {
-      if (isElder(g) && s.row >= this.w.honorRows) v.push('elder');
-      if (s.row === 0 && !isHonored(g)) v.push('tor');
-    }
-    if (g.kind === 'akim' && s.row !== 0) v.push('akim');
-    if (R.includes(3) && isKuda(g)) {
-      if (s.row >= this.w.honorRows) v.push('kuda');
-      else {
-        const p = this.partner(g);
-        if (p && p.state === 'seated') {
-          const ps = this.L.seats[p.seat];
-          if (ps.row !== s.row || ps.side === s.side) v.push('face');
-        }
-      }
-    }
-    if (R.includes(4) && g.rival >= 0) {
-      const rv = this.byId(g.rival);
-      if (rv.state === 'seated' && this.adjacent(i, rv.seat)) v.push('feud');
-    }
-    if (R.includes(5) && g.kind === 'child' && s.zone !== 'child' && s.zone !== 'stool') v.push('child');
-    if (R.includes(6) && g.kind === 'bauyr' && s.zone === 'stool') v.push('stool');
-    if (R.includes(7) && g.family) {
-      const kin = this.guests.filter((o) => o !== g && o.family === g.family && o.state === 'seated');
-      if (kin.length && !kin.some((o) => this.adjacent(i, o.seat))) v.push('family');
-    }
-    return v;
-  }
-
-  /** What `check` would say if `g` sat at seat `i` (used for the green/red seat hints). */
-  wouldBreak(g: Guest, i: number) {
-    const [state, seat] = [g.state, g.seat];
-    g.state = 'seated';
-    g.seat = i;
-    const v = this.check(g, i);
-    g.state = state;
-    g.seat = seat;
-    return v;
-  }
-
-  refresh() {
-    for (const g of this.guests) if (g.state === 'seated') g.viol = this.check(g, g.seat);
-  }
+  byId(id: number) { return this.sim.byId(id); }
+  wouldBreak(g: Guest, i: number) { return this.sim.wouldBreak(g, i); }
 
   // --- feedback ---------------------------------------------------------
 
@@ -273,37 +194,6 @@ export class HallScene extends Scene {
 
   showBanner(s: string, c: string) {
     this.banner = { s, t: 0, c };
-  }
-
-  addScandal(n: number) {
-    if (n <= 0) return;
-    this.scandal += n;
-    this.shake = 0.3;
-    this.flash = 0.35;
-    this.breakCombo();
-  }
-
-  breakCombo() {
-    this.combo = 0;
-  }
-
-  /** Perfect seating in a row: each one past the first pays a growing bonus. */
-  addCombo() {
-    if (run.mode === 'tutorial') return;
-    this.combo++;
-    this.bestCombo = Math.max(this.bestCombo, this.combo);
-    this.comboPop = 0.4;
-    if (this.combo < 2) return;
-    const bonus = Math.min(20, 5 * (this.combo - 1));
-    this.kurmet += bonus;
-    // The bonus rises out of the combo counter, clear of the seat floaters.
-    this.float('+' + bonus, TOOL_X + 11, 108, C.teal);
-    sfx('combo');
-    if (this.combo === 5 || this.combo === 8 || this.combo === 12) {
-      this.showBanner(t(this.combo === 5 ? 'tamasha' : 'keremet'), C.gold);
-      this.confetti.spawn(40);
-      applause(1.5);
-    }
   }
 
   puff(x: number, y: number, n: number, c: string[], o: Partial<Puff> = {}) {
@@ -328,189 +218,197 @@ export class HallScene extends Scene {
   }
 
   walk(g: Guest, x0: number, y0: number, hm: boolean, dur = 1.1) {
-    this.walkers.push({ sprite: g.sprite, x0, y0, x1: DOOR_X, y1: DOOR_Y, t: 0, dur, hm, hop: hm ? 0 : 1 });
+    this.walkers.push({ sprite: spr(g), x0, y0, x1: DOOR_X, y1: DOOR_Y, t: 0, dur, hm, hop: hm ? 0 : 1 });
   }
 
-  meet(g: Guest) {
-    profile.album[g.kind] = (profile.album[g.kind] ?? 0) + 1;
+  /** Turn what the simulation did into sounds, words and particles. */
+  drain() {
+    const evs = this.sim.events.splice(0);
+    for (const ev of evs) this.react(ev);
   }
 
-  // --- rules in motion ----------------------------------------------------
-
-  seatGuest(g: Guest, i: number) {
-    this.queue.splice(this.queue.indexOf(g), 1);
-    g.state = 'seated';
-    g.seat = i;
-    g.seatedAt = this.elapsed;
-    this.occ[i] = g.id;
-    this.hops.set(g.id, 0.35);
-    this.refresh();
-    this.dust(i);
-    if (this.advice?.g === g) this.advice = null;
-    const s = this.L.seats[i];
-    const cx = s.x + 8;
-    if (!g.viol.length) {
-      const gain = 10 + Math.round((10 * g.patience) / g.maxP);
-      this.kurmet += gain;
-      g.rewarded = true;
-      g.happyT = 1.8;
-      this.float(t('zharaysyn'), cx, s.y - 6, C.gold);
-      this.float('+' + gain, cx, s.y + 2, C.cream);
-      this.burst(cx, s.y + 8, 12, [C.gold, C.cream, C.green]);
-      sfx('good');
-      this.kudaBonus(g);
-      this.addCombo();
-      if (run.mode === 'tutorial') this.tutNext(g);
-    } else {
-      this.addScandal(10 * g.viol.length);
-      this.mistake(cx, s.y, g.viol[0]);
-    }
-  }
-
-  kudaBonus(g: Guest) {
-    const p = this.partner(g);
-    if (!p || this.pairBonus.has(g.pair) || p.state !== 'seated' || g.viol.length || p.viol.length) return;
-    this.pairBonus.add(g.pair);
-    this.kurmet += 10;
-    this.float(t('kudalar'), 90, this.L.seats[g.seat].y - 12, C.gold);
-    this.burst(90, this.L.seats[g.seat].y + 8, 20);
-  }
-
-  moveGuest(g: Guest, to: number) {
-    const from = g.seat;
-    if (to === from) return;
-    const otherId = this.occ[to];
-    const other = otherId >= 0 ? this.byId(otherId) : null;
-    const before = new Map<Guest, string[]>([[g, g.viol.slice()]]);
-    if (other) before.set(other, other.viol.slice());
-    this.occ[from] = -1;
-    if (other) {
-      other.seat = from;
-      this.occ[from] = other.id;
-      this.hops.set(other.id, 0.35);
-    }
-    g.seat = to;
-    this.occ[to] = g.id;
-    this.hops.set(g.id, 0.35);
-    this.refresh();
-    this.dust(to);
-    if (other) this.dust(from);
-    let worse = false;
-    let better = false;
-    for (const [h, old] of before) {
-      const fixed = old.filter((x) => !h.viol.includes(x)).length;
-      const added = h.viol.filter((x) => !old.includes(x)).length;
-      this.scandal = Math.max(0, this.scandal - 5 * fixed);
-      this.addScandal(10 * added);
-      if (added) worse = true;
-      if (fixed) better = true;
-      if (!h.viol.length) {
-        h.happyT = 1.8;
-        if (!h.rewarded) {
-          h.rewarded = true;
-          this.kurmet += 10;
-        }
-        this.kudaBonus(h);
+  react(ev: SimEvent) {
+    const seats = this.L.seats;
+    switch (ev.e) {
+      case 'arrive':
+        profile.album[ev.g.kind] = (profile.album[ev.g.kind] ?? 0) + 1;
+        break;
+      case 'enqueue':
+        this.qx.set(ev.g.id, ev.front ? -40 : 190);
+        break;
+      case 'akim':
+        this.showBanner(t('akimCame'), C.red);
+        this.azheLine = { s: t('rule8'), t: 0 };
+        this.selected = ev.g;
+        sfx('alarm');
+        break;
+      case 'cousin':
+        this.selected = ev.g;
+        this.showBanner(t('cousinCame'), C.gold);
+        this.azheLine = { s: t('noSeats'), t: 0 };
+        sfx('alarm');
+        break;
+      case 'seated': {
+        const s = seats[ev.seat];
+        const cx = s.x + 8;
+        this.hops.set(ev.g.id, 0.35);
+        this.dust(ev.seat);
+        this.float(t('zharaysyn'), cx, s.y - 6, C.gold);
+        this.float('+' + ev.gain, cx, s.y + 2, C.cream);
+        this.burst(cx, s.y + 8, 12, [C.gold, C.cream, C.green]);
+        sfx('good');
+        break;
       }
+      case 'mistake': {
+        const s = seats[ev.seat];
+        this.mistake(s.x + 8, s.y, ev.why);
+        break;
+      }
+      case 'moved': {
+        this.hops.set(ev.g.id, 0.35);
+        this.dust(ev.to);
+        if (ev.swapped) {
+          this.hops.set(this.occ[ev.from], 0.35);
+          this.dust(ev.from);
+        }
+        const s = seats[ev.to];
+        if (ev.worse) break; // the mistake event follows
+        if (ev.better) {
+          this.float(t('zharaysyn'), s.x + 8, s.y - 6, C.gold);
+          sfx('good');
+        } else sfx('pick');
+        break;
+      }
+      case 'kuda': {
+        const y = seats[ev.seat].y;
+        this.float(t('kudalar'), 90, y - 12, C.gold);
+        this.burst(90, y + 8, 20);
+        break;
+      }
+      case 'combo':
+        this.comboPop = 0.4;
+        if (!ev.bonus) break;
+        // The bonus rises out of the combo counter, clear of the seat floaters.
+        this.float('+' + ev.bonus, TOOL_X + 11, 108, C.teal);
+        sfx('combo');
+        if (ev.n === 5 || ev.n === 8 || ev.n === 12) {
+          this.showBanner(t(ev.n === 5 ? 'tamasha' : 'keremet'), C.gold);
+          this.confetti.spawn(40);
+          applause(1.5);
+        }
+        break;
+      case 'scandal':
+        this.shake = 0.3;
+        this.flash = 0.35;
+        break;
+      case 'leave': {
+        const x = this.qx.get(ev.g.id) ?? qSlotX(0);
+        this.float(t('offended'), x + 16, Q_Y - 4, C.red);
+        this.walk(ev.g, x + 8, DOOR_Y, true);
+        sfx('leave');
+        if (this.drag?.g === ev.g) this.drag = null;
+        if (this.selected === ev.g) this.selected = null;
+        break;
+      }
+      case 'runOff': {
+        const s = seats[ev.seat];
+        this.walk(ev.g, s.x, s.y, false, 0.8);
+        this.float(t('ranOff'), s.x + 8, s.y - 6, C.cream);
+        sfx('leave');
+        if (this.drag?.g === ev.g) this.drag = null;
+        break;
+      }
+      case 'seatTaken':
+        this.float(t('seatTaken'), 90, seats[ev.seat].y, C.cream);
+        sfx('bad');
+        break;
+      case 'tutNo':
+        // The tutorial never punishes: the azhe just explains and the guest goes back.
+        this.azheLine = { s: t('tutNo') + ' ' + reason(ev.why), t: 0 };
+        sfx('bad');
+        break;
+      case 'tutNext':
+        this.azheLine = null;
+        this.tutLine = t('tut' + ev.next);
+        this.selected = null;
+        break;
+      case 'tutDone':
+        this.azheLine = null;
+        this.phase = 'tutdone';
+        this.phaseT = 0;
+        this.tutLine = t('tutDone');
+        this.showBanner(t('zharaysyn'), C.gold);
+        this.burst(90, 140, 40, [C.gold, C.red, C.teal, C.green]);
+        applause(2);
+        break;
+      case 'tool':
+        if (ev.t === 'tea') {
+          for (const g of this.queue) {
+            const x = (this.qx.get(g.id) ?? 0) + 16;
+            this.puff(x, Q_Y + 4, 6, [C.cream], { vy: -14, life: 1.2, a: 0.7, s: 2 });
+            this.hops.set(g.id, 0.35);
+          }
+          this.float(t('u_tea'), 90, 236, C.teal);
+        } else if (ev.t === 'advice') {
+          this.selected = this.advice?.g ?? this.selected;
+          this.azheLine = { s: t('u_advice'), t: 1.5 };
+        } else this.showBanner(t('u_dombra'), C.teal);
+        sfx(ev.t);
+        break;
+      case 'toolFail':
+        if (ev.why === 'noOne') this.float(t('noOneWaiting'), 90, 230, C.cream);
+        if (ev.why === 'noSeat') this.azheLine = { s: t('noGoodSeat'), t: 0 };
+        sfx('bad');
+        break;
+      case 'gift':
+        sfx('candy');
+        break;
+      case 'giftCaught': {
+        const [gx, gy] = this.giftPos(ev.gift);
+        run.coins++;
+        profile.coins++;
+        this.float(t('shashuTap'), gx, gy - 8, C.gold);
+        this.float('+1 ' + t('tenge'), gx, gy, C.cream);
+        this.burst(gx, gy, 14, [C.gold, C.cream, C.red, C.teal]);
+        sfx('coin');
+        break;
+      }
+      case 'fail':
+        this.phase = 'fail';
+        this.phaseT = 0;
+        this.drag = null;
+        this.syncButtons();
+        this.showBanner(t('title0'), C.red);
+        playMusic('none');
+        sfx('fail');
+        break;
+      case 'asaba':
+        this.phase = 'asaba';
+        this.phaseT = 0;
+        this.drag = null;
+        this.syncButtons();
+        this.confetti.spawn(70);
+        if (ev.timeBonus) this.float(t('fast', ev.timeBonus), 90, 150, C.gold);
+        this.shot = this.renderShot();
+        this.showBanner(t('asabaCame'), C.gold);
+        profile.album.asaba = (profile.album.asaba ?? 0) + 1;
+        playMusic('menu');
+        sfx('fanfare');
+        applause(3);
+        break;
     }
-    const s = this.L.seats[to];
-    if (worse) this.mistake(s.x + 8, s.y, g.viol[0] ?? other?.viol[0] ?? 'side');
-    else if (better) {
-      this.float(t('zharaysyn'), s.x + 8, s.y - 6, C.gold);
-      sfx('good');
-    } else sfx('pick');
-  }
-
-  leave(g: Guest) {
-    const qi = this.queue.indexOf(g);
-    const x = this.qx.get(g.id) ?? qSlotX(qi);
-    this.queue.splice(qi, 1);
-    g.state = 'left';
-    this.addScandal(15);
-    this.float(t('offended'), x + 16, Q_Y - 4, C.red);
-    this.walk(g, x + 8, DOOR_Y, true);
-    sfx('leave');
-    if (this.drag?.g === g) this.drag = null;
-    if (this.selected === g) this.selected = null;
-  }
-
-  toQueueFront(g: Guest) {
-    g.state = 'queue';
-    this.queue.unshift(g);
-    this.qx.set(g.id, -40);
-    if (this.queue.length > 4) {
-      const last = this.queue.pop()!;
-      last.state = 'outside';
-      this.outside.unshift(last);
-    }
-  }
-
-  runOff(g: Guest) {
-    const s = this.L.seats[g.seat];
-    this.occ[g.seat] = -1;
-    g.seat = -1;
-    g.runDelay = 0;
-    g.patience = g.maxP;
-    this.toQueueFront(g);
-    this.walk(g, s.x, s.y, false, 0.8);
-    this.float(t('ranOff'), s.x + 8, s.y - 6, C.cream);
-    sfx('leave');
-    this.refresh();
-  }
-
-  cousinArrives(g: Guest) {
-    const stool = stoolSeat(this.L);
-    this.L.seats.push(stool);
-    this.occ.push(-1);
-    this.toQueueFront(g);
-    this.meet(g);
-    this.selected = g;
-    this.showBanner(t('cousinCame'), C.gold);
-    this.azheLine = { s: t('noSeats'), t: 0 };
-    sfx('alarm');
   }
 
   // --- host helpers ------------------------------------------------------
 
   useTool(k: Tool) {
-    if (!this.charges[k]) { sfx('bad'); return; }
-    if (k === 'tea') {
-      if (!this.queue.length) { this.float(t('noOneWaiting'), 90, 230, C.cream); sfx('bad'); return; }
-      for (const g of this.queue) {
-        g.patience = g.maxP;
-        const x = (this.qx.get(g.id) ?? 0) + 16;
-        this.puff(x, Q_Y + 4, 6, [C.cream], { vy: -14, life: 1.2, a: 0.7, s: 2 });
-        this.hops.set(g.id, 0.35);
-      }
-      this.float(t('u_tea'), 90, 236, C.teal);
-    } else if (k === 'advice') {
-      const g = this.selected?.state === 'queue' ? this.selected : this.queue[0];
-      if (!g) { this.float(t('noOneWaiting'), 90, 230, C.cream); sfx('bad'); return; }
-      const seat = this.L.seats.find((st) => this.occ[st.i] < 0 && !this.wouldBreak(g, st.i).length);
-      if (!seat) { this.azheLine = { s: t('noGoodSeat'), t: 0 }; sfx('bad'); return; }
-      this.advice = { g, seat: seat.i, t: 6 };
-      this.selected = g;
-      this.azheLine = { s: t('u_advice'), t: 1.5 };
-    } else {
-      this.dombraT = DOMBRA_TIME;
-      this.showBanner(t('u_dombra'), C.teal);
-    }
-    this.charges[k]--;
-    sfx(k);
+    this.sim.useTool(k, this.selected);
+    this.drain();
   }
 
   toolAt(x: number, y: number): Tool | null {
-    if (run.mode === 'tutorial' || x < TOOL_X || x >= TOOL_X + 22) return null;
+    if (this.tutorial || x < TOOL_X || x >= TOOL_X + 22) return null;
     return TOOLS.find((_, i) => y >= toolY(i) && y < toolY(i) + 20) ?? null;
-  }
-
-  spawnGift() {
-    const happy = this.L.seats.filter((st) => this.occ[st.i] >= 0 && !this.byId(this.occ[st.i]).viol.length);
-    if (!happy.length) return false;
-    const st = happy[Math.floor(Math.random() * happy.length)];
-    this.gifts.push({ x: st.x + 8, y: st.y - 2, t: 0, seed: Math.random() * 6 });
-    sfx('candy');
-    return true;
   }
 
   giftPos(g: Gift): [number, number] {
@@ -518,46 +416,21 @@ export class HallScene extends Scene {
   }
 
   catchGift(x: number, y: number) {
-    const i = this.gifts.findIndex((g) => {
+    const gift = this.gifts.find((g) => {
       const [gx, gy] = this.giftPos(g);
       return Math.hypot(gx - x, gy - y) < 11;
     });
-    if (i < 0) return false;
-    const [gx, gy] = this.giftPos(this.gifts[i]);
-    this.gifts.splice(i, 1);
-    this.kurmet += 5;
-    run.coins++;
-    profile.coins++;
-    this.float(t('shashuTap'), gx, gy - 8, C.gold);
-    this.float('+1 ' + t('tenge'), gx, gy, C.cream);
-    this.burst(gx, gy, 14, [C.gold, C.cream, C.red, C.teal]);
-    sfx('coin');
+    if (!gift) return false;
+    this.sim.catchGift(gift.id);
+    this.drain();
     return true;
-  }
-
-  /** Tutorial: the next scripted guest walks in once the previous one is seated. */
-  tutNext(g: Guest) {
-    const next = this.guests[g.id + 1];
-    this.azheLine = null;
-    if (next) {
-      next.arriveAt = this.elapsed + 0.6;
-      this.tutLine = t('tut' + (g.id + 2));
-      this.selected = null;
-    } else {
-      this.phase = 'tutdone';
-      this.phaseT = 0;
-      this.tutLine = t('tutDone');
-      this.showBanner(t('zharaysyn'), C.gold);
-      this.burst(90, 140, 40, [C.gold, C.red, C.teal, C.green]);
-      applause(2);
-    }
   }
 
   /** A pointing hand sliding from the waiting guest to the seat they belong in. */
   drawFinger() {
     const g = this.queue[0];
     if (!g || this.drag || this.phase !== 'play' || g.id > 2) return;
-    const s = this.L.seats[this.tutTargets[g.id]];
+    const s = this.L.seats[this.sim.tutTargets[g.id]];
     const p = Math.min(1, (this.clock % 1.6) / 1.1);
     const e = p * p * (3 - 2 * p);
     const x0 = (this.qx.get(g.id) ?? qSlotX(0)) + 16;
@@ -604,9 +477,6 @@ export class HallScene extends Scene {
     for (const n of this.notes) { n.t += dt; n.y -= 18 * dt; n.x += n.vx * dt + Math.sin(n.t * 5) * 0.4; }
     this.notes = this.notes.filter((n) => n.t < 2);
     if (live) {
-      for (const g of this.gifts) g.t += dt;
-      this.gifts = this.gifts.filter((g) => g.t < 5);
-      if (this.advice && ((this.advice.t -= dt) <= 0 || this.advice.g.state !== 'queue' || this.occ[this.advice.seat] >= 0)) this.advice = null;
       // Steam off the beshbarmak and the tea bowls.
       if ((this.steamT -= dt) <= 0) {
         this.steamT = 0.22;
@@ -646,133 +516,41 @@ export class HallScene extends Scene {
   }
 
   updatePlay(dt: number) {
-    // The dombyrashy plays a kui: the clock and everyone's patience stop while it lasts.
-    const frozen = this.dombraT > 0;
-    if (frozen) this.dombraT = Math.max(0, this.dombraT - dt);
-    else this.elapsed += dt;
-    for (const g of this.guests) {
-      if (g.state !== 'pending' || g.arriveAt > this.elapsed) continue;
-      this.meet(g);
-      if (g.kind === 'akim') {
-        this.toQueueFront(g);
-        this.showBanner(t('akimCame'), C.red);
-        this.azheLine = { s: t('rule8'), t: 0 };
-        this.selected = g;
-        sfx('alarm');
-      } else {
-        g.state = 'outside';
-        this.outside.push(g);
-      }
+    // Fixed 60 Hz ticks, so the server's replay of the action log lands on exactly the same state.
+    this.acc += dt;
+    while (this.acc >= STEP && this.sim.state === 'play') {
+      this.sim.tick();
+      this.acc -= STEP;
+      this.drain();
     }
+    if (this.sim.state !== 'play') this.acc = 0;
 
-    // The cousin from the aul turns up the moment every regular seat is taken.
-    const cousin = this.guests.find((g) => g.kind === 'bauyr' && g.state === 'pending');
-    if (cousin && this.occ.every((o) => o >= 0)) {
-      cousin.arriveAt = this.elapsed;
-      this.cousinArrives(cousin);
-    }
-
-    while (this.queue.length < 4 && this.outside.length) {
-      const g = this.outside.shift()!;
-      g.state = 'queue';
-      this.queue.push(g);
-      this.qx.set(g.id, 190);
-    }
     this.queue.forEach((g, i) => {
       const x = this.qx.get(g.id) ?? qSlotX(i);
       this.qx.set(g.id, x + (qSlotX(i) - x) * Math.min(1, dt * 10));
     });
-    if (run.mode === 'tutorial') return; // no clock, no patience, no kids running off
-    if (frozen) return;
-    if (this.elapsed >= this.nextGift) this.nextGift = this.elapsed + (this.spawnGift() ? rnd(8, 14) : 2);
-    for (const g of [...this.queue]) {
-      g.patience -= dt;
-      if (g.patience <= 0) this.leave(g);
-    }
-
-    const left = WAVE_TIME - this.elapsed;
-    // Kids get restless: each runs off once, but not in the last seconds.
-    for (const g of this.guests) {
-      if (g.state === 'seated' && g.runDelay && this.elapsed - g.seatedAt > g.runDelay && left > 10) this.runOff(g);
-    }
+    if (this.tutorial || this.phase !== 'play') return;
+    const left = this.sim.left;
     setIntensity(left < 10 ? 2 : left < 20 ? 1 : 0);
     const sec = Math.ceil(left);
-    if (sec <= 10 && sec > 0 && sec !== this.lastSec) {
+    if (sec <= 10 && sec > 0 && sec !== this.lastSec && !this.dombraT) {
       this.lastSec = sec;
       this.countPop = { n: sec, t: 0 };
       sfx('tick');
     }
-
-    if (this.scandal >= 100) {
-      this.scandal = 100;
-      this.phase = 'fail';
-      this.phaseT = 0;
-      this.drag = null;
-      this.syncButtons();
-      this.showBanner(t('title0'), C.red);
-      playMusic('none');
-      sfx('fail');
-      return;
-    }
-    const waiting = this.guests.some((g) => (g.state === 'pending' && g.arriveAt !== Infinity) || g.state === 'outside' || g.state === 'queue');
-    if (left <= 0 || !waiting) this.startAsaba(Math.max(0, left));
-  }
-
-  present() {
-    // A cousin who never came (table never filled) doesn't count against the player.
-    return this.guests.filter((g) => !(g.state === 'pending' && g.arriveAt === Infinity));
-  }
-
-  startAsaba(left: number) {
-    this.phase = 'asaba';
-    this.phaseT = 0;
-    this.drag = null;
-    this.syncButtons();
-    for (const g of this.present()) {
-      if (g.state === 'pending' || g.state === 'outside' || g.state === 'queue') {
-        g.state = 'left';
-        this.scandal = Math.min(100, this.scandal + 8);
-      }
-    }
-    this.queue = [];
-    this.outside = [];
-    this.gifts = [];
-    this.advice = null;
-    this.dombraT = 0;
-    this.confetti.spawn(70);
-    if (left > 1) {
-      this.timeBonus = Math.floor(left);
-      this.kurmet += this.timeBonus;
-      this.float(t('fast', this.timeBonus), 90, 150, C.gold);
-    }
-    this.refresh();
-    this.shot = this.renderShot();
-    this.showBanner(t('asabaCame'), C.gold);
-    profile.album.asaba = (profile.album.asaba ?? 0) + 1;
-    playMusic('menu');
-    sfx('fanfare');
-    applause(3);
   }
 
   finish() {
     if (this.phase === 'done') return;
-    this.refresh();
     saveProfile();
-    const failed = this.phase === 'fail';
     this.phase = 'done';
-    const guests = this.present();
-    const total = guests.length;
-    const perfect = guests.filter((g) => g.state === 'seated' && !g.viol.length).length;
-    const ratio = perfect / total;
-    let stars = 0;
-    if (!failed) stars = ratio >= 0.9 && this.scandal < 35 ? 3 : ratio >= 0.7 ? 2 : ratio >= 0.45 ? 1 : 0;
-    const score = stars ? Math.max(0, Math.round(this.kurmet + perfect * 5 + stars * 100 - this.scandal / 2)) : 0;
-    const title = titleFor(stars);
+    const r = this.sim.result();
+    verify.hall(run.wave, this.sim.log, r.score);
+    const title = titleFor(r.stars);
     go('result', {
-      wave: run.wave + 1, hall: this.w.idx, stars, title, perfect, total, score,
-      left: guests.filter((g) => g.state === 'left').length, combo: this.bestCombo,
-      kurmet: Math.round(this.kurmet), scandal: Math.round(this.scandal),
-      memento: stars ? this.makeMemento(title, stars) : null,
+      wave: run.wave + 1, hall: this.w.idx, stars: r.stars, title, perfect: r.perfect, total: r.total, score: r.score,
+      left: r.left, combo: r.combo, kurmet: r.kurmet, scandal: r.scandal, parts: r.parts, mod: this.w.mod ?? null,
+      memento: r.stars ? this.makeMemento(title, r.stars) : null,
     });
   }
 
@@ -815,7 +593,7 @@ export class HallScene extends Scene {
       const sel = this.selected;
       const to = this.seatAt(x, y);
       if (sel && to >= 0 && this.occ[to] < 0 && (sel.state === 'queue' || sel.state === 'seated')) {
-        this.place(sel, sel.state === 'seated' ? sel.seat : -1, to);
+        this.place(sel, to);
         this.selected = null;
       }
       return;
@@ -826,6 +604,7 @@ export class HallScene extends Scene {
   }
 
   onMove(x: number, y: number) {
+    this.toolHover = input.touch ? null : this.toolAt(x, y);
     const d = this.drag;
     if (!d) return;
     this.sway = Math.max(-0.45, Math.min(0.45, this.sway + (x - d.x) * 0.05));
@@ -852,27 +631,19 @@ export class HallScene extends Scene {
       return;
     }
     const to = this.seatAt(x, y - input.liftY);
-    if (to >= 0) this.place(d.g, d.from, to);
+    if (to >= 0) this.place(d.g, to);
   }
 
-  /** Seat a queued guest (from = -1) or move a seated one; shared by drag and tap. */
-  place(g: Guest, from: number, to: number) {
-    if (from < 0) {
-      if (this.occ[to] >= 0) {
-        this.float(t('seatTaken'), 90, this.L.seats[to].y, C.cream);
-        sfx('bad');
-      } else if (run.mode === 'tutorial' && this.wouldBreak(g, to).length) {
-        // The tutorial never punishes: the azhe just explains and the guest goes back.
-        this.azheLine = { s: t('tutNo') + ' ' + reason(this.wouldBreak(g, to)[0]), t: 0 };
-        sfx('bad');
-      } else this.seatGuest(g, to);
-    } else this.moveGuest(g, to);
+  /** Seat a queued guest or move a seated one; shared by drag and tap. */
+  place(g: Guest, to: number) {
+    this.sim.place(g, to);
+    this.drain();
   }
 
   // --- drawing ----------------------------------------------------------
 
   drawSeated(g: Guest, x: number, y: number) {
-    img(g.sprite, x, y);
+    img(spr(g), x, y);
     const R = this.w.rules;
     if (g.pair && R.includes(3)) img(RING, x + 11, y + 1);
     if (g.feud && R.includes(4)) img(BOLT, x, y);
@@ -955,6 +726,27 @@ export class HallScene extends Scene {
     box(s.x - 3 - p, s.y - 3 - p, 22 + p * 2, 22 + p * 2, C.gold);
     box(s.x - 2 - p, s.y - 2 - p, 20 + p * 2, 20 + p * 2, C.cream);
     img(HAND, s.x + 4, s.y - 12 - Math.round(Math.abs(Math.sin(this.clock * 6)) * 3));
+  }
+
+  /** Name and effect of the helper under the mouse (or held finger), to the right of its button. */
+  drawToolTip() {
+    const k = this.toolDown ?? this.toolHover;
+    if (!k || this.phase !== 'play') return;
+    const i = TOOLS.indexOf(k);
+    const lines = wrap(t('d_' + k), 104);
+    const foot = wrap(this.charges[k] ? t('oneUse') : t('toolUsed'), 104);
+    const h = 19 + (lines.length + foot.length) * 8;
+    const x = TOOL_X + 27;
+    const y = Math.min(toolY(i) - 2, 248 - h);
+    rect(x + 1, y + 1, 112, h, C.brown);
+    rect(x, y, 112, h, C.maroon);
+    box(x, y, 112, h, C.gold);
+    // Arrow pointing back at the button.
+    rect(x - 2, toolY(i) + 7, 2, 5, C.gold);
+    rect(x - 4, toolY(i) + 8, 2, 3, C.gold);
+    textS(t('n_' + k), x + 4, y + 4, C.gold);
+    lines.forEach((l, j) => text(l, x + 4, y + 14 + j * 8, C.cream));
+    foot.forEach((l, j) => text(l, x + 4, y + 16 + (lines.length + j) * 8, C.tan));
   }
 
   /** Left column: the combo counter and the three host helpers. */
@@ -1060,7 +852,7 @@ export class HallScene extends Scene {
     rect(x - 1, y - 1, 34, 34, frame);
     rect(x, y, 32, 32, g.kind === 'akim' || g.kind === 'bauyr' ? C.gold : C.tan);
     rect(x, y + 24, 32, 8, C.brown);
-    img(g.sprite, x, y, 2);
+    img(spr(g), x, y, 2);
     if (R.includes(2) && g.side === 'groom') img(ARROW_LEFT, x + 1, y + 1);
     if (R.includes(2) && g.side === 'bride') img(ARROW_RIGHT, x + 1, y + 1);
     if (g.pair && R.includes(3)) img(RING, x + 26, y + 1);
@@ -1079,7 +871,7 @@ export class HallScene extends Scene {
     band(0, 0, 180);
     const name = run.mode === 'daily' ? t('daily') : run.mode === 'tutorial' ? t('tutorial') : t('toiN', run.wave + 1);
     textS(`${name}: ${t('hall_' + this.w.hall)}`, 4, 6, C.cream);
-    const left = Math.max(0, Math.ceil(WAVE_TIME - this.elapsed));
+    const left = Math.max(0, Math.ceil(this.sim.left));
     const warn = left <= 15 && this.phase === 'play';
     const tc = this.dombraT > 0 ? C.teal : warn ? (Math.floor(this.clock * 4) % 2 ? C.red : C.cream) : C.gold;
     if (run.mode !== 'tutorial') textS(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, 176, 6, tc, 1, 'r');
@@ -1171,12 +963,15 @@ export class HallScene extends Scene {
     panel(8, 42, 164, 214);
     textO(title, 90, 50, C.gold, 2, 'c');
     textS(`${t('hall_' + this.w.hall)} - ${t('seats', this.w.seats)}`, 90, 67, C.cream, 1, 'c');
+    // The hall's twist takes the bottom line of the panel.
+    const mod = this.w.mod;
+    const lim = mod ? 214 : 226;
     // Full sentences when they fit; the one-line short forms for the big halls.
     let rules = this.w.rules.map((r) => wrap(t('rule' + r), 142));
-    if (81 + rules.flat().length * 8 + rules.length > 226) rules = this.w.rules.map((r) => wrap(t('rs' + r), 142));
+    if (81 + rules.flat().length * 8 + rules.length > lim) rules = this.w.rules.map((r) => wrap(t('rs' + r), 142));
     const count = rules.flat().length;
-    const lh = 81 + count * 9 + rules.length * 3 > 226 ? 8 : 9;
-    const gap = 81 + count * lh + rules.length * 3 > 226 ? 1 : 3;
+    const lh = 81 + count * 9 + rules.length * 3 > lim ? 8 : 9;
+    const gap = 81 + count * lh + rules.length * 3 > lim ? 1 : 3;
     let y = 81;
     rules.forEach((lines, i) => {
       textS(String(this.w.rules[i]), 16, y, C.gold);
@@ -1186,6 +981,11 @@ export class HallScene extends Scene {
       }
       y += gap;
     });
+    if (mod) {
+      rect(14, 215, 152, 1, C.gold);
+      const mul = modMul(this.w);
+      textS(t('mod_' + mod) + (mul > 1 ? `  X${mul.toFixed(2)}` : ''), 90, 219, C.teal, 1, 'c');
+    }
   }
 
   /** The azhe pops up with a one-line speech bubble. */
@@ -1318,6 +1118,7 @@ export class HallScene extends Scene {
       rect(0, 34, 180, 286, 'rgba(59,36,24,0.55)');
       this.drawPausePanel();
     }
+    this.drawToolTip();
     this.drawButtons();
     if (!this.pauseBtn.hidden) {
       const off = this.pressed === this.pauseBtn ? 1 : 0;

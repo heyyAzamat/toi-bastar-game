@@ -1,66 +1,16 @@
-// Global leaderboard: Vercel Function backed by Upstash Redis (REST API, no SDK).
-// Env: KV_REST_API_URL + KV_REST_API_TOKEN (Vercel Marketplace Upstash) or UPSTASH_REDIS_REST_URL + _TOKEN.
-
-const URL_ = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-const TOKEN = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-const META = 'toi:meta';
-const DAILY_TTL = 8 * 86400; // daily boards expire after a week
-
-/** 'all' (all-time) or 'daily-YYYY-MM-DD'; anything else is rejected. */
-function boardKey(board: unknown): string | null {
-  if (board == null || board === 'all') return 'toi:board';
-  if (typeof board === 'string' && /^daily-\d{4}-\d{2}-\d{2}$/.test(board)) return `toi:${board}`;
-  return null;
-}
-
-async function redis(cmds: (string | number)[][]): Promise<{ result: any }[]> {
-  const r = await fetch(`${URL_}/pipeline`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
-    body: JSON.stringify(cmds),
-  });
-  if (!r.ok) throw new Error(`redis ${r.status}`);
-  return r.json();
-}
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+// Global leaderboard (read only). Scores are written by api/run after it replays a toi; see docs/solana.md.
+import { boardKey, readBoard } from './_lib/board.js';
+import { kvConfigured } from './_lib/kv.js';
+import { json } from './_lib/http.js';
 
 export async function GET(req: Request) {
-  if (!URL_ || !TOKEN) return json({ error: 'leaderboard not configured' }, 503);
-  const key = boardKey(new URL(req.url).searchParams.get('board'));
-  if (!key) return json({ error: 'bad board' }, 400);
-  const [top] = await redis([['ZREVRANGE', key, 0, 19, 'WITHSCORES']]);
-  const flat: string[] = top.result ?? [];
-  const ids = flat.filter((_, i) => i % 2 === 0);
-  if (!ids.length) return json({ entries: [] });
-  const [meta] = await redis([['HMGET', META, ...ids]]);
-  const entries = ids.map((id, i) => {
-    const m = meta.result?.[i] ? JSON.parse(meta.result[i]) : {};
-    return { id, name: m.name ?? 'TOISHY', stars: m.stars ?? 0, wallet: m.wallet ?? null, score: Number(flat[i * 2 + 1]) };
-  });
-  return json({ entries });
+  if (!kvConfigured()) return json({ error: 'leaderboard not configured' }, 503);
+  const board = new URL(req.url).searchParams.get('board') ?? 'all';
+  if (!boardKey(board)) return json({ error: 'bad board' }, 400);
+  return json({ entries: await readBoard(board) });
 }
 
-export async function POST(req: Request) {
-  if (!URL_ || !TOKEN) return json({ error: 'leaderboard not configured' }, 503);
-  let b: any;
-  try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
-  const ok =
-    typeof b?.id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(b.id) &&
-    typeof b.name === 'string' && /^[A-Z0-9А-ЯЁӘҒҚҢӨҰҮҺІ _.-]{1,12}$/.test(b.name) &&
-    Number.isInteger(b.score) && b.score >= 0 && b.score <= 20000 &&
-    Number.isInteger(b.stars) && b.stars >= 0 && b.stars <= 9 &&
-    (b.wallet == null || (typeof b.wallet === 'string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(b.wallet)));
-  const key = boardKey(b.board);
-  if (!ok || !key) return json({ error: 'invalid entry' }, 400);
-  // GT: only raise a player's best, never lower it.
-  const cmds: (string | number)[][] = [['ZADD', key, 'GT', 'CH', b.score, b.id]];
-  if (key !== 'toi:board') cmds.push(['EXPIRE', key, DAILY_TTL]);
-  const [add] = await redis(cmds);
-  const [cur] = await redis([['ZSCORE', key, b.id]]);
-  if (add.result || Number(cur.result) === b.score) {
-    await redis([['HSET', META, b.id, JSON.stringify({ name: b.name, stars: b.stars, wallet: b.wallet ?? null })]]);
-  }
-  return json({ ok: true });
+/** Scores used to be posted by the client; now only a replayed run can set one. */
+export async function POST() {
+  return json({ error: 'scores are submitted by /api/run' }, 410);
 }

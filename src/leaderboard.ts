@@ -1,4 +1,5 @@
 // Global leaderboards (/api/leaderboard): all-time, plus one board per daily toi. Local fallback when offline.
+// Only the server writes to the global boards, from replayed runs (api/run); the client keeps a local copy.
 import { profile } from './storage';
 
 export interface Entry {
@@ -33,14 +34,7 @@ export async function fetchBoard(board: Board = 'all'): Promise<{ entries: Entry
   return { entries: localBoard(board), online: false };
 }
 
-export async function submitScore(score: number, stars: number, board: Board = 'all') {
-  const e: Entry = { id: profile.id, name: profile.name, score, stars, wallet: profile.wallet };
-  saveLocal(board, e);
-  try {
-    await fetch('/api/leaderboard', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...e, board }),
-    });
-  } catch {}
+/** Records a finished toi on this device's board (the global one is written by api/run). */
+export function saveLocalScore(score: number, stars: number, board: Board = 'all') {
+  saveLocal(board, { id: profile.id, name: profile.name, score, stars, wallet: profile.wallet });
 }
