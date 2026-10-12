@@ -10,7 +10,7 @@ import { run, title as titleFor, unlockedHalls, interlude } from '../run';
 import { t, nm, nextLang } from '../i18n';
 import { profile, saveProfile, addMemento, download, mementoPng, type Memento } from '../storage';
 import {
-  connectWallet, disconnectWallet, shortAddr, hasWallet, isMobile, openInWallet,
+  connectWallet, disconnectWallet, shortAddr, hasWallet, canDeeplink, embedded, openInWallet,
 } from '../solana';
 import { fetchBoard, saveLocalScore, type Entry } from '../leaderboard';
 import { verify, startToi } from '../verify';
@@ -582,7 +582,7 @@ export class ProfileScene extends Scene {
   build() {
     const connected = !!profile.wallet;
     // On a phone without a wallet extension, offer to reopen the game inside the wallet's browser.
-    const deeplink = !connected && isMobile() && !hasWallet();
+    const deeplink = !connected && canDeeplink();
     this.buttons = [
       btn(122, 34, 44, 14, t('edit'), async () => {
         const n = await askName(profile.name);
@@ -610,8 +610,7 @@ export class ProfileScene extends Scene {
     });
   }
   async connect(kind: 'phantom' | 'solflare') {
-    if (!hasWallet(kind)) this.status = t('noWallet');
-    else this.status = t('connecting');
+    this.status = embedded() ? t('walletNewTab') : hasWallet(kind) ? t('connecting') : t('noWallet');
     try {
       const a = await connectWallet(kind);
       if (a) this.status = t('connected');
@@ -644,7 +643,7 @@ export class ProfileScene extends Scene {
     if (profile.wallet) {
       text(shortAddr(profile.wallet) + ' (' + (profile.walletKind ?? '') + ')', 90, 131, C.teal, 1, 'c');
       if (this.onchain !== null) text(t('onchain', this.onchain), 90, 141, C.gold, 1, 'c');
-    } else if (isMobile() && !hasWallet()) {
+    } else if (canDeeplink()) {
       text(t('noWallet'), 90, 131, C.tan, 1, 'c');
     }
     if (this.status) text(this.status, 90, 202, C.cream, 1, 'c');

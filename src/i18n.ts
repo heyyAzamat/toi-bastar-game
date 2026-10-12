@@ -144,6 +144,7 @@ const D: Record<string, [string, string, string]> = {
   openPhantom: ['OPEN IN PHANTOM', 'ОТКРЫТЬ В PHANTOM', 'PHANTOM-ДА АШУ'],
   openSolflare: ['OPEN IN SOLFLARE', 'ОТКРЫТЬ В SOLFLARE', 'SOLFLARE-ДА АШУ'],
   noWallet: ['NO WALLET IN THIS BROWSER', 'В БРАУЗЕРЕ НЕТ КОШЕЛЬКА', 'БРАУЗЕРДЕ ӘМИЯН ЖОҚ'],
+  walletNewTab: ['WALLET OPENS IN A NEW TAB', 'КОШЕЛЁК - В НОВОЙ ВКЛАДКЕ', 'ӘМИЯН ЖАҢА ҚОЙЫНДЫДА'],
   installWallet: ['GET PHANTOM', 'УСТАНОВИТЬ PHANTOM', 'PHANTOM ОРНАТУ'],
 
   myToi: ['HOST MY TOI', 'МОЙ ТОЙ', 'МЕНІҢ ТОЙЫМ'],

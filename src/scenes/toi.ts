@@ -7,7 +7,7 @@ import { COIN, CANDIES, guestSprite } from '../sprites';
 import { t, nm } from '../i18n';
 import { profile, saveProfile, download } from '../storage';
 import { track } from '../idos';
-import { connectWallet, shortAddr, hasWallet, isMobile, openInWallet } from '../solana';
+import { connectWallet, shortAddr, hasWallet, canDeeplink, embedded, openInWallet } from '../solana';
 import { askText } from '../modal';
 import { claimTenge, onchainTenge, tengeEnabled } from '../tenge';
 import { verify } from '../verify';
@@ -72,7 +72,7 @@ export class HostScene extends Scene {
   update(dt: number) { this.t += dt; }
   build() {
     const wallet = !!profile.wallet;
-    const deeplink = !wallet && isMobile() && !hasWallet();
+    const deeplink = !wallet && canDeeplink();
     this.buttons = [btn(20, 290, 140, 16, t('back'), () => go('profile'))];
     if (!wallet) {
       this.buttons.push(...(deeplink
@@ -89,7 +89,7 @@ export class HostScene extends Scene {
     });
   }
   async connect(kind: 'phantom' | 'solflare') {
-    this.status = hasWallet(kind) ? t('connecting') : t('noWallet');
+    this.status = embedded() ? t('walletNewTab') : hasWallet(kind) ? t('connecting') : t('noWallet');
     try {
       await connectWallet(kind);
     } catch {
@@ -330,7 +330,7 @@ export class InviteScene extends Scene {
         if (n) { profile.name = n; saveProfile(); }
       }));
       if (!profile.wallet) {
-        const deeplink = isMobile() && !hasWallet();
+        const deeplink = canDeeplink();
         this.buttons.push(...(deeplink
           ? [btn(20, 236, 140, 18, t('openPhantom'), () => openInWallet('phantom'), true)]
           : [
@@ -378,7 +378,7 @@ export class InviteScene extends Scene {
     this.build();
   }
   async connect(kind: 'phantom' | 'solflare') {
-    this.status = hasWallet(kind) ? t('connecting') : t('noWallet');
+    this.status = embedded() ? t('walletNewTab') : hasWallet(kind) ? t('connecting') : t('noWallet');
     try {
       if (await connectWallet(kind)) this.status = '';
       this.balance = null;

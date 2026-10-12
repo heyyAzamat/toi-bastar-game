@@ -19,12 +19,22 @@ export function activeProvider(): Provider | null {
 }
 
 export function provider(kind: WalletKind): Provider | null {
+  // idosgames.com frames the game with getters on window.phantom / window.solana that throw
+  // (and report a wallet bypass): inside any frame the wallet globals are never read.
+  if (embedded()) return null;
   const w = window as any;
-  if (kind === 'phantom') return w.phantom?.solana ?? (w.solana?.isPhantom ? w.solana : null);
-  return w.solflare?.isSolflare ? w.solflare : null;
+  try {
+    if (kind === 'phantom') return w.phantom?.solana ?? (w.solana?.isPhantom ? w.solana : null);
+    return w.solflare?.isSolflare ? w.solflare : null;
+  } catch {
+    return null;
+  }
 }
 
-/** On mobile browsers without the extension, reopen the game inside the wallet's in-app browser. */
+/** On mobile browsers without the extension, reopen the game inside the wallet's in-app browser.
+ * Not from a frame: the frame would navigate away to the wallet's site, which the host page refuses. */
+export const canDeeplink = () => isMobile() && !embedded() && !hasWallet();
+
 export const isMobile = () =>
   /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 
