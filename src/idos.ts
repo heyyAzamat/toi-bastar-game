@@ -37,7 +37,7 @@ export function track(name: string, params?: Record<string, string | number>, va
 
 /**
  * Post a verified total to the iDos leaderboard (best score per player) and return the player's
- * rank there. Called only with the server's replayed total, never the client's own number.
+ * rank there (from the top list). Called only with the server's replayed total, never the client's own number.
  */
 export async function postScore(total: number): Promise<number | null> {
   const c = await idos();
@@ -45,8 +45,10 @@ export async function postScore(total: number): Promise<number | null> {
   await syncName(c);
   const sub = await c.leaderboard.submitScore(BOARD, Math.round(total));
   if (!sub.ok) return null;
-  const me = await c.leaderboard.getMyProgress(BOARD);
-  return me.ok && me.data.LastKnownRank ? me.data.LastKnownRank : null;
+  // The server ranks the top list; the player's own row carries the rank (null outside the top 100).
+  const top = await c.leaderboard.getLeaderboard(BOARD);
+  const me = c.auth.context?.userID;
+  return (top.ok && top.data.TopUsers?.find((u) => u.UserID === me)?.Rank) || null;
 }
 
 /** Show the player's in-game name on the platform (its leaderboard rows), once per name change. */
