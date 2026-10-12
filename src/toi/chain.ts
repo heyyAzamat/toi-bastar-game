@@ -4,6 +4,7 @@
 // web3.js is loaded lazily so the game itself stays light.
 import { activeProvider } from '../solana';
 import { profile } from '../storage';
+import { track } from '../idos';
 import type { ToiInvite } from './link';
 import { TENGE_MINT } from '../tenge';
 
@@ -123,6 +124,7 @@ export async function sendWish(inv: ToiInvite, seat: number, tenge: number, avat
     }
     const sig = await conn.sendRawTransaction(signed.serialize());
     await conn.confirmTransaction({ signature: sig, ...bh }, 'confirmed');
+    track('guestbook_sign', undefined, tenge);
     return { ok: true, sig };
   } catch (e: any) {
     return { ok: false, reason: 'error', detail: String(e?.message ?? e).slice(0, 60) };

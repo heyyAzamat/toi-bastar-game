@@ -1,5 +1,6 @@
 // Optional Solana layer via injected wallet providers (Phantom / Solflare). No SDK needed.
 import { profile, saveProfile } from './storage';
+import { track } from './idos';
 
 type WalletKind = 'phantom' | 'solflare';
 
@@ -37,10 +38,21 @@ export function openInWallet(kind: WalletKind) {
     : `https://solflare.com/ul/v1/browse/${url}?ref=${ref}`;
 }
 
+/** Running inside another page's frame (the game's page on idosgames.com). */
+export function embedded(): boolean {
+  try { return window.self !== window.top; } catch { return true; }
+}
+
 export const shortAddr = (a: string) => a.slice(0, 4) + '..' + a.slice(-4);
 
 export async function connectWallet(kind: WalletKind): Promise<string | null> {
   const p = provider(kind);
+  // Embedded in idosgames.com the wallet extension may not reach the game's frame: open the game
+  // by its own address in a new tab, where the wallet works as usual.
+  if (!p && embedded()) {
+    window.open(location.href, '_blank', 'noopener');
+    return null;
+  }
   if (!p) {
     // Mobile: reopen inside the wallet's in-app browser. Desktop: point to the extension.
     if (isMobile()) openInWallet(kind);
@@ -52,6 +64,7 @@ export async function connectWallet(kind: WalletKind): Promise<string | null> {
   profile.wallet = addr;
   profile.walletKind = addr ? kind : null;
   saveProfile();
+  if (addr) track('wallet_connect', { mode: kind });
   return addr;
 }
 

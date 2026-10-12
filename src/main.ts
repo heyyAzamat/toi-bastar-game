@@ -12,6 +12,7 @@ import { BetasharScene } from './scenes/betashar';
 import { ShopScene } from './scenes/shop';
 import { applyCosmetics } from './shop';
 import { readInvite } from './toi/link';
+import { idos } from './idos';
 
 const cv = document.getElementById('c') as HTMLCanvasElement;
 setCtx(cv.getContext('2d')!);
@@ -142,5 +143,7 @@ async function boot() {
     else go('splash');
   }
   requestAnimationFrame(frame);
+  // Sign in to the iDos Games platform in the background, once the game is already on screen.
+  setTimeout(() => void idos(), 1500);
 }
 boot();

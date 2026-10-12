@@ -5,6 +5,7 @@
 import { apiUrl } from '../api';
 import { activeProvider } from '../solana';
 import { profile } from '../storage';
+import { track } from '../idos';
 import { DEVNET, ensureBuffer } from './chain';
 
 export interface EstelygiMeta {
@@ -50,6 +51,7 @@ export async function mintEstelygi(png: Uint8Array, meta: EstelygiMeta, onStep: 
     const sig = await conn.sendRawTransaction(signed.serialize());
     const bh = await conn.getLatestBlockhash();
     await conn.confirmTransaction({ signature: sig, ...bh }, 'confirmed');
+    track('nft_mint');
     return { ok: true, asset: body.asset, sig };
   } catch (e: any) {
     return { ok: false, reason: 'error', detail: String(e?.message ?? e).slice(0, 80) };

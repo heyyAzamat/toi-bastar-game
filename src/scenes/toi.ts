@@ -6,6 +6,7 @@ import { sfx, playMusic, applause } from '../audio';
 import { COIN, CANDIES, guestSprite } from '../sprites';
 import { t, nm } from '../i18n';
 import { profile, saveProfile, download } from '../storage';
+import { track } from '../idos';
 import { connectWallet, shortAddr, hasWallet, isMobile, openInWallet } from '../solana';
 import { askText } from '../modal';
 import { claimTenge, onchainTenge, tengeEnabled } from '../tenge';
@@ -104,6 +105,7 @@ export class HostScene extends Scene {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !profile.wallet) return;
     const inv = makeInvite(name, date, profile.name, profile.wallet, profile.equip.avatar);
     profile.hosted.push(inv);
+    track('toi_created');
     saveProfile();
     sfx('fanfare');
     go('guestbook', inv);

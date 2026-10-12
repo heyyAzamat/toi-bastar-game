@@ -10,7 +10,7 @@ import { isElder, isKuda, hallSeed, modMul, type Guest, type WaveDef } from '../
 import { HallSim, STEP, TOOLS, DOMBRA_TIME, type Tool, type Gift, type SimEvent } from '../sim/hall';
 import { renderBackground, TABLE_X, TABLE_W } from '../hall';
 import { run, title as titleFor, input } from '../run';
-import { verify } from '../verify';
+import { verify, startToi } from '../verify';
 import { t, nm } from '../i18n';
 import { profile, saveProfile } from '../storage';
 
@@ -453,8 +453,8 @@ export class HallScene extends Scene {
         this.phase = 'done';
         profile.tutorialDone = true;
         saveProfile();
-        run.reset('campaign');
-        go('hall');
+        // Through startToi, so the first real toi is server-verified like every other one.
+        void startToi('campaign');
       }
     } else if (this.phase === 'asaba' || this.phase === 'fail') {
       if (this.phase === 'asaba' && this.phaseT % 0.7 < dt) this.confetti.spawn(14);

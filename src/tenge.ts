@@ -4,6 +4,7 @@
 import { apiUrl } from './api';
 import { activeProvider } from './solana';
 import { profile, saveProfile } from './storage';
+import { track } from './idos';
 
 export const TENGE_MINT = (import.meta.env.VITE_TENGE_MINT as string | undefined) || null;
 export const DEVNET = 'https://api.devnet.solana.com';
@@ -56,6 +57,7 @@ export async function claimTenge(want: number): Promise<ClaimResult> {
     if (!r.ok) return { ok: false, reason: 'error', detail: body.detail ?? body.error ?? `HTTP ${r.status}` };
     profile.coins -= amount;
     saveProfile();
+    track('tenge_claim', undefined, amount);
     return { ok: true, sig: body.sig, amount };
   } catch (e: any) {
     return { ok: false, reason: 'error', detail: String(e?.message ?? e) };

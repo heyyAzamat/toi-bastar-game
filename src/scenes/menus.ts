@@ -14,6 +14,7 @@ import {
 } from '../solana';
 import { fetchBoard, saveLocalScore, type Entry } from '../leaderboard';
 import { verify, startToi } from '../verify';
+import { postScore, track } from '../idos';
 import { rankOf, nextRank, goals, ALBUM_KINDS, RANKS } from '../progress';
 import { askName } from '../modal';
 import { claimTenge, onchainTenge, tengeEnabled, MAX_CLAIM } from '../tenge';
@@ -53,7 +54,8 @@ function hallName(idx: number) {
 export class SplashScene extends Scene {
   t = 0;
   update(dt: number) { this.t += dt; }
-  onUp() { go('start'); }
+  // A first-time player goes straight into the tutorial hall: one tap from the link to playing.
+  onUp() { if (!profile.tutorialDone && !profile.games) startToi('tutorial'); else go('start'); }
   draw() {
     frameBg();
     textO(t('toi'), 90, 70, C.gold, 4, 'c');
@@ -432,9 +434,13 @@ export class FinalScene extends Scene {
     saveProfile();
     // The global board takes the server's replayed total, not ours.
     this.status = '';
-    verify.finish().then((r) => {
+    verify.finish().then(async (r) => {
       this.status = r ? t('verified') : t('unverified');
       if (r && r.total !== this.total) console.warn('[verify] total differs', { local: this.total, server: r.total });
+      track('run_finish', { mode: run.mode, stars: this.starSum }, r?.total ?? this.total);
+      // Only the server's replayed total goes to the platform's leaderboard.
+      const rank = r ? await postScore(r.total) : null;
+      if (rank) this.status = t('verifiedIdos', rank);
     });
     this.buttons = [
       btn(20, 232, 140, 20, t('ranking'), () => go('board', run.mode === 'daily' ? 'daily' : 'all'), true),

@@ -4,6 +4,7 @@
 // Without the API (offline, or no Redis configured) the game still plays; scores then stay local.
 import { apiUrl } from './api';
 import { run, type RunMode } from './run';
+import { track } from './idos';
 import { profile } from './storage';
 import { go } from './ui';
 import type { Action } from './sim/hall';
@@ -37,6 +38,7 @@ export const verify = {
   },
 
   hall(wave: number, log: Action[], local: number) {
+    track('hall_complete', { mode: run.mode, hall: run.halls[wave] ?? wave }, local);
     this.step({ op: 'hall', wave, log }, (r) => {
       // The client and the server ran the same code; a difference means a determinism bug.
       if (r.stars && r.score !== local) {
@@ -75,6 +77,7 @@ export const verify = {
 /** Start a toi: reset the run, ask the server for a verified seed, then open the first hall. */
 export async function startToi(mode: RunMode, hall = 0) {
   run.reset(mode, hall);
+  track('run_start', { mode });
   verify.id = null;
   verify.chain = Promise.resolve();
   if (mode !== 'tutorial') {

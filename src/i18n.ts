@@ -344,6 +344,7 @@ const D: Record<string, [string, string, string]> = {
   rank6: ['GREAT TOISHY', 'ВЕЛИКИЙ ТОЙШЫ', 'ҰЛЫ ТОЙШЫ'],
   rank7: ['TOI LEGEND', 'ЛЕГЕНДА ТОЕВ', 'ТОЙ АҢЫЗЫ'],
   verified: ['SCORE VERIFIED BY SERVER', 'СЧЁТ ПРОВЕРЕН СЕРВЕРОМ', 'ҰПАЙ СЕРВЕРДЕ ТЕКСЕРІЛДІ'],
+  verifiedIdos: ['VERIFIED - IDOS GAMES #{n}', 'ПРОВЕРЕНО - IDOS GAMES #{n}', 'ТЕКСЕРІЛДІ - IDOS GAMES #{n}'],
   unverified: ['OFFLINE: SCORE SAVED LOCALLY', 'ОФЛАЙН: СЧЁТ СОХРАНЁН ЛОКАЛЬНО', 'ОФЛАЙН: ҰПАЙ ОСЫ ҚҰРЫЛҒЫДА'],
   verifiedTenge: ['VERIFIED TENGE', 'ПРОВЕРЕННЫЕ ТЕҢГЕ', 'ТЕКСЕРІЛГЕН ТЕҢГЕ'],
   // Album tabs and goals.
