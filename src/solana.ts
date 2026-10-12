@@ -69,13 +69,23 @@ export async function connectWallet(kind: WalletKind): Promise<string | null> {
     else window.open(kind === 'phantom' ? 'https://phantom.app/download' : 'https://solflare.com/download', '_blank', 'noopener');
     return null;
   }
-  await p.connect();
-  const addr = p.publicKey?.toString() ?? null;
+  // A wallet popup that never answers would leave the game silent: give up after a minute.
+  const res: any = await Promise.race([
+    p.connect(),
+    new Promise((_, no) => setTimeout(() => no(new Error('wallet did not answer')), 60_000)),
+  ]);
+  const addr = (p.publicKey ?? res?.publicKey)?.toString() ?? null;
   profile.wallet = addr;
   profile.walletKind = addr ? kind : null;
   saveProfile();
   if (addr) track('wallet_connect', { mode: kind });
   return addr;
+}
+
+/** A wallet error, short enough for one status line on the 180px screen. */
+export function walletError(e: unknown): string {
+  const m = (e as any)?.message ?? String(e ?? '');
+  return String(m).toUpperCase().replace(/[^A-Z0-9 .,:!?-]/g, '').trim().slice(0, 30) || 'ERROR';
 }
 
 export async function disconnectWallet() {

@@ -10,7 +10,7 @@ import { run, title as titleFor, unlockedHalls, interlude } from '../run';
 import { t, nm, nextLang } from '../i18n';
 import { profile, saveProfile, addMemento, download, mementoPng, type Memento } from '../storage';
 import {
-  connectWallet, disconnectWallet, shortAddr, hasWallet, canDeeplink, embedded, openInWallet,
+  connectWallet, disconnectWallet, shortAddr, hasWallet, canDeeplink, embedded, openInWallet, walletError,
 } from '../solana';
 import { fetchBoard, saveLocalScore, type Entry } from '../leaderboard';
 import { verify, startToi } from '../verify';
@@ -615,8 +615,9 @@ export class ProfileScene extends Scene {
       const a = await connectWallet(kind);
       if (a) this.status = t('connected');
       this.refreshBalance();
-    } catch {
-      this.status = t('rejected');
+    } catch (e) {
+      console.warn('wallet connect', e);
+      this.status = walletError(e);
     }
     this.build();
   }

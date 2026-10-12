@@ -7,7 +7,7 @@ import { COIN, CANDIES, guestSprite } from '../sprites';
 import { t, nm } from '../i18n';
 import { profile, saveProfile, download } from '../storage';
 import { track } from '../idos';
-import { connectWallet, shortAddr, hasWallet, canDeeplink, embedded, openInWallet } from '../solana';
+import { connectWallet, shortAddr, hasWallet, canDeeplink, embedded, openInWallet, walletError } from '../solana';
 import { askText } from '../modal';
 import { claimTenge, onchainTenge, tengeEnabled } from '../tenge';
 import { verify } from '../verify';
@@ -92,8 +92,9 @@ export class HostScene extends Scene {
     this.status = embedded() ? t('walletNewTab') : hasWallet(kind) ? t('connecting') : t('noWallet');
     try {
       await connectWallet(kind);
-    } catch {
-      this.status = t('rejected');
+    } catch (e) {
+      console.warn('wallet connect', e);
+      this.status = walletError(e);
     }
     this.build();
   }
@@ -382,8 +383,9 @@ export class InviteScene extends Scene {
     try {
       if (await connectWallet(kind)) this.status = '';
       this.balance = null;
-    } catch {
-      this.status = t('rejected');
+    } catch (e) {
+      console.warn('wallet connect', e);
+      this.status = walletError(e);
     }
     this.build();
   }
