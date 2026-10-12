@@ -9,7 +9,7 @@
 ![License MIT](https://img.shields.io/badge/License-MIT-green)
 
 <!-- TODO: add once they exist: **[Demo video](URL)** · **[Colosseum submission](URL)** -->
-**[▶ Play now](https://toi-bastar-six.vercel.app)** · **[How to play](#how-to-play)** · **[Solana integration](#solana-integration)**
+**[▶ Play now](https://toi-bastar-six.vercel.app)** · **[On iDos Games](https://idosgames.com/app/2YIKIAN5/)** · **[How to play](#how-to-play)** · **[Solana integration](#solana-integration)**
 
 <p align="center"><img src="assets/gameplay.gif" alt="Gameplay: dragging guests to their seats" width="360"></p>
 
