@@ -2,6 +2,7 @@
 // The server (api/estelygi) stores the PNG + metadata on Arweave via Irys and builds the "create asset"
 // transaction signed as collection authority; the player's wallet signs once as payer/owner and the game
 // sends it to devnet. Only web3.js is loaded in the browser.
+import { apiUrl } from '../api';
 import { activeProvider } from '../solana';
 import { profile } from '../storage';
 import { DEVNET, ensureBuffer } from './chain';
@@ -25,7 +26,7 @@ export async function mintEstelygi(png: Uint8Array, meta: EstelygiMeta, onStep: 
   if (!p || !profile.wallet) return { ok: false, reason: 'no-wallet' };
   try {
     onStep('upload');
-    const r = await fetch('/api/estelygi', {
+    const r = await fetch(apiUrl('/api/estelygi'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ owner: profile.wallet, ...meta, name: meta.name.slice(0, 32), image: toBase64(png) }),

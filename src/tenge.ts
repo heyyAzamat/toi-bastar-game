@@ -1,6 +1,7 @@
 // TENGE on devnet: a Token-2022 token (0 decimals). Tenge earned in tois is kept locally until the player claims
 // it; the server mints it to their wallet (api/tenge-claim), but never more than it counted itself by replaying
 // the player's verified tois (api/run).
+import { apiUrl } from './api';
 import { activeProvider } from './solana';
 import { profile, saveProfile } from './storage';
 
@@ -43,7 +44,7 @@ export async function claimTenge(want: number): Promise<ClaimResult> {
     return { ok: false, reason: 'rejected', detail: String(e?.message ?? e) };
   }
   try {
-    const r = await fetch('/api/tenge-claim', {
+    const r = await fetch(apiUrl('/api/tenge-claim'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ wallet: profile.wallet, amount, ts, signature: sigB64, key: profile.key }),

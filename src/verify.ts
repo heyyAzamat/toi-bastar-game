@@ -2,6 +2,7 @@
 // its action log, and the server replays it with the same simulation (src/sim) to count score and tenge itself.
 // The leaderboard and the claimable tenge balance only ever see the server's numbers.
 // Without the API (offline, or no Redis configured) the game still plays; scores then stay local.
+import { apiUrl } from './api';
 import { run, type RunMode } from './run';
 import { profile } from './storage';
 import { go } from './ui';
@@ -9,7 +10,7 @@ import type { Action } from './sim/hall';
 import type { Tap } from './sim/mini';
 
 const post = async (body: unknown) => {
-  const r = await fetch('/api/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await fetch(apiUrl('/api/run'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
   return j;

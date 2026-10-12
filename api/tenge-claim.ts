@@ -8,6 +8,7 @@ import {
   TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentInstruction, createMintToCheckedInstruction,
 } from '@solana/spl-token';
 import { authority, bump, connection, isWallet, json, tengeMint, useOnce, verifySignature } from './_lib/solana.js';
+import { preflight } from './_lib/http.js';
 import { balanceKey, hashKey } from './_lib/kv.js';
 
 const MAX_PER_CLAIM = 200;
@@ -64,3 +65,5 @@ export async function POST(req: Request) {
     return json({ error: 'mint failed', detail: String(e?.message ?? e).slice(0, 120) }, 500);
   }
 }
+
+export const OPTIONS = preflight;

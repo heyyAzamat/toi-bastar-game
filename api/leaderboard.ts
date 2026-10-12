@@ -1,7 +1,7 @@
 // Global leaderboard (read only). Scores are written by api/run after it replays a toi; see docs/solana.md.
 import { boardKey, readBoard } from './_lib/board.js';
 import { kvConfigured } from './_lib/kv.js';
-import { json } from './_lib/http.js';
+import { json, preflight } from './_lib/http.js';
 
 export async function GET(req: Request) {
   if (!kvConfigured()) return json({ error: 'leaderboard not configured' }, 503);
@@ -14,3 +14,5 @@ export async function GET(req: Request) {
 export async function POST() {
   return json({ error: 'scores are submitted by /api/run' }, 410);
 }
+
+export const OPTIONS = preflight;

@@ -8,6 +8,7 @@ import { createGenericFile, createNoopSigner, createSignerFromKeypair, generateS
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { create, fetchCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import { RPC, authority, bump, collectionAddress, isWallet, json } from './_lib/solana.js';
+import { preflight } from './_lib/http.js';
 
 const MAX_PNG = 600_000;
 const IRYS = RPC.includes('devnet') ? 'https://devnet.irys.xyz' : 'https://node1.irys.xyz';
@@ -54,3 +55,5 @@ export async function POST(req: Request) {
     return json({ error: 'mint failed', detail: String(e?.message ?? e).slice(0, 120) }, 500);
   }
 }
+
+export const OPTIONS = preflight;

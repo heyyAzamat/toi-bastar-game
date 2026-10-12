@@ -1,5 +1,6 @@
 // Global leaderboards (/api/leaderboard): all-time, plus one board per daily toi. Local fallback when offline.
 // Only the server writes to the global boards, from replayed runs (api/run); the client keeps a local copy.
+import { apiUrl } from './api';
 import { profile } from './storage';
 
 export interface Entry {
@@ -28,7 +29,7 @@ function saveLocal(board: Board, e: Entry) {
 
 export async function fetchBoard(board: Board = 'all'): Promise<{ entries: Entry[]; online: boolean }> {
   try {
-    const r = await fetch(`/api/leaderboard?board=${encodeURIComponent(board)}`);
+    const r = await fetch(apiUrl(`/api/leaderboard?board=${encodeURIComponent(board)}`));
     if (r.ok) return { entries: (await r.json()).entries, online: true };
   } catch {}
   return { entries: localBoard(board), online: false };

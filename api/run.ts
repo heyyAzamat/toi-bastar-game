@@ -13,7 +13,7 @@ import { replayHall, STEP } from '../src/sim/hall.js';
 import { replayShashu, replayBetashar, SHASHU_TIME, BOWS, QUARTER } from '../src/sim/mini.js';
 import { bump, kvGet, kvSet, kvUsable, hashKey, balanceKey } from './_lib/kv.js';
 import { writeScore, type Player } from './_lib/board.js';
-import { json } from './_lib/http.js';
+import { json, preflight } from './_lib/http.js';
 
 const RUN_TTL = 6 * 3600;
 const BALANCE_TTL = 5 * 365 * 86400;
@@ -148,3 +148,5 @@ export async function POST(req: Request) {
   await kvSet(runKey(b.runId), JSON.stringify(rec), RUN_TTL);
   return out instanceof Response ? out : json(out);
 }
+
+export const OPTIONS = preflight;
