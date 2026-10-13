@@ -91,7 +91,7 @@ Everything is live on **devnet**. The puzzle works without a wallet; Solana carr
 **Try it yourself (devnet, about 3 minutes, Phantom or Solflare on desktop)**
 
 1. Open [toi-bastar-six.vercel.app](https://toi-bastar-six.vercel.app) or [2yikian5.idos.games](https://2yikian5.idos.games/) in its own tab. Inside the idosgames.com page the wallet buttons open the game in a new tab, because iDos blocks direct wallet access in its frame.
-2. **Host:** Profile → connect the wallet → MY TOI → CREATE A TOI. Pick today's date and copy the invite link.
+2. **Host:** Profile → connect the wallet → HOST MY TOI → CREATE A TOI. Pick today's date and copy the invite link.
 3. **Guest:** open the link (a second wallet or browser profile is best) → ACCEPT → pick a seat → write a wish → SEND TO SOLANA. GET TEST SOL tops up devnet SOL for the fee. The wallet can stay on mainnet: the game sends the transaction to devnet itself.
 4. **Back as the host:** the guestbook shows the wish and the gift, read from the chain. MINT TOI ESTELYGI NFT mints the table.
 5. **TENGE:** finish a toi from the start screen (TOI BASTAR!), then Profile → CLAIM mints the tenge the server counted.
