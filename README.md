@@ -13,6 +13,15 @@
 
 <p align="center"><img src="assets/gameplay.gif" alt="Gameplay: dragging guests to their seats" width="360"></p>
 
+## In 30 seconds
+
+- **A puzzle built on a real tradition.** Seat the relatives at a Kazakh toi by its unwritten rules: elders at the tor, groom's side left, feuding uncles apart. Eight rules, four halls, three helpers, two mini-games.
+- **Scores you can't fake.** The game is a deterministic simulation. The server replays every move of every hall and writes the score itself.
+- **Solana where it means something.** A guest's seat, wish and shashu gift reach the host in **one transaction** (TENGE, a Token-2022 transfer, plus a Memo). The guestbook is read straight from the chain. The finished table becomes a Toi Estelygi NFT on Metaplex Core.
+- **Plays anywhere.** Any browser, made for phones, in Kazakh, Russian and English. No wallet needed to play. Live on [iDos Games](https://idosgames.com/app/2YIKIAN5/).
+
+Built for the **Colosseum Crypto World's Fair 2026** and its **Solana Superteam KZ × iDos Games** side track.
+
 ## About
 
 Toi Bastar! ("Start the toi!") is a pixel-art, mobile-first seating puzzle. You are the host of a toi, a Kazakh
@@ -78,6 +87,16 @@ Everything is live on **devnet**. The puzzle works without a wallet; Solana carr
 - **Shashu is a gift of money.** At a real toi guests throw sweets and coins. In My Toi a guest sends tenge straight to the host's wallet. No game server holds the balance, and the host really owns what they received.
 - **The guestbook has no backend.** The invite link carries the toi, the chain stores the wishes. Nobody, including us, can edit or delete a wish or fake the amount next to it: the guestbook shows the actual transfer, not the text of the memo.
 - **The memento outlives the game.** A Toi Estelygi NFT sits in the host's wallet and stays there if our site goes down.
+
+**Try it yourself (devnet, about 3 minutes, Phantom or Solflare on desktop)**
+
+1. Open [toi-bastar-six.vercel.app](https://toi-bastar-six.vercel.app) or [2yikian5.idos.games](https://2yikian5.idos.games/) in its own tab. Inside the idosgames.com page the wallet buttons open the game in a new tab, because iDos blocks direct wallet access in its frame.
+2. **Host:** Profile → connect the wallet → MY TOI → CREATE A TOI. Pick today's date and copy the invite link.
+3. **Guest:** open the link (a second wallet or browser profile is best) → ACCEPT → pick a seat → write a wish → SEND TO SOLANA. GET TEST SOL tops up devnet SOL for the fee. The wallet can stay on mainnet: the game sends the transaction to devnet itself.
+4. **Back as the host:** the guestbook shows the wish and the gift, read from the chain. MINT TOI ESTELYGI NFT mints the table.
+5. **TENGE:** finish a toi from the start screen (TOI BASTAR!), then Profile → CLAIM mints the tenge the server counted.
+
+Transactions from the demo video (2026-10-12): [wish + 10 TENGE in one transaction](https://explorer.solana.com/tx/4c3guoKRb9t6zJEj1mBJRR6Hg7fwWK4nVnXTbhmemP7RYYPsQL7CPd66oBc48ZWV8B1ezWdjHJ3C82qseNozsm9j?cluster=devnet) · [Toi Estelygi mint](https://explorer.solana.com/tx/MW3zdvfP5t7W9vhSob6v3AmKE6GbuWxUdiDBifmgqWZzj3pXJaxeFnZvmaDmTzUtqfW4Uz8qf6HGbbiv3FHAvG1?cluster=devnet).
 
 Architecture, transaction layouts and trust assumptions: [docs/solana.md](docs/solana.md).
 
